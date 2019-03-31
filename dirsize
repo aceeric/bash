@@ -1,0 +1,86 @@
+#!/bin/bash
+# Shows directory sizes sorted in reverse order by size
+
+maxlines=-1
+directory="."
+
+#
+# parses the passed arg. If it starts with a dash, then removes the dash and
+# interprets the rest of the arg as an integer representing the number of
+# lines to display
+#
+# args:
+#   $1 - if begins with a dash, then interpreted as a line count, else
+#        interpreted as a directory name
+# state change:
+#   assigns to either $maxlines or $directory based on arg value as described
+# returns:
+#   nothing
+
+function parse_arg {
+  if [[ "$1" == -* ]] # number of lines arg starts with dash
+  then
+    maxlines="$1"
+    maxlines=${maxlines:1}
+  else
+    directory="$1"
+  fi
+}
+
+#
+# main function. Parses args. Displays help if args are invalid. Otherwise
+# performs the directory listing.
+#
+function main {
+  if [[ "$#" == 1 ]] && [[ "$1" != "--help" ]] && [[ "$1" != "-h" ]]; then
+    parse_arg "$1"
+  elif [[ "$#" == 2 ]] && [[ "$1" != "--help" ]] && [[ "$1" != "-h" ]]; then
+    parse_arg "$1"
+    parse_arg "$2"
+  elif [[ "$#" != 0 ]]; then
+    echo "E.g.:"
+    echo "  dirsize"
+    echo "    displays all subdirectories in current directory"
+    echo "  dirsize /foo -10"
+    echo "    displays 10 largest subdirectories in /foo"
+    echo "  dirsize -10 /foo"
+    echo "    same as above (order of args is not important)"
+    echo "  dirsize -10"
+    echo "    displays 10 largest subdirectories in current directory"
+    echo "  dirsize /foo"
+    echo "    displays all subdirectories in /foo"
+    exit 1
+  fi
+
+  directory=$(realpath "$directory")
+
+  if [[ ! -d "$directory" ]]; then 
+    echo "Not a directory: $directory"
+    exit 1
+  fi
+
+  cur_line=1
+  OIFS=$IFS
+  IFS=$'\n'
+  for line in $(sudo du -b -d 1 --exclude /proc --exclude /run "$directory" | sort -nr)
+  do
+    size=$(echo $line | cut -f1)
+    name=$(echo $line | cut -f2)
+    if [[ "$name" == "$directory" ]]; then # du displays a total for the directory - discard that
+      continue
+    fi
+    if [[ $cur_line == 1 ]]; then # display a header
+      echo "size              directory name"
+      echo "----------------  -----------------------------------"
+    fi
+    printf "%'16d %s\n" $size $name
+    cur_line=$(( $cur_line + 1))
+    if (( $maxlines != -1 )) && (( $cur_line > $maxlines )); then
+      break
+    fi
+  done
+  IFS=$OIFS
+}
+
+# entry point of the script
+main "$@"

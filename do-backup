@@ -1,0 +1,309 @@
+#!/bin/bash
+# Rudimentary backup script
+
+# if $force is set, then allow overwriting, otherwise abort if an overwrite is attempted
+unset force
+
+# if $include is set - use it as the list of directories to back up, else use hard-coded
+# list in $backup_directories, below
+unset include
+
+# if $include is not set, then use this as the list of directories to back up. Exclusions
+# by omission:
+#   /cdrom, /media, and /mnt -- mount points
+#   /dev, /lost+found, /proc, /run, /sys, and /tmp -- auto-recreated on reboot
+
+backup_directories=(sdb1 snap home var usr lib opt boot root bin sbin etc lib64 srv)
+
+# list of directories to copy instead of compressing (compressing these didn't seem to
+# yield significant space savings, or, in the case of sdb1, these are my virtualbox VDI
+# files). Originally, had more in here but reduced for simplification.
+no_compress=(sdb1)
+
+#
+# Displays usage instructions and exits.
+#
+# args:
+#   none
+#
+# returns:
+#   no return value
+#
+# exits:
+#   with error 1 always
+#
+function usage() {
+  echo "Usage: do_backup [options]"
+  echo "  Backs up files."
+  echo
+  echo "Options:"
+  echo "-f                Enable (force) overwriting of existing backup files - otherwise no"
+  echo "                  existing directory/file in the target will be overwritten"
+  echo
+  echo "-i \"foo bar baz\"  Include only the specified quoted list of directories in root, e.g.: /foo,"
+  echo "                  /bar, and /baz in the example. Otherwise, the following hard-coded directory"
+  echo "                  list in root is backed up: ${backup_directories[@]}"
+  echo
+  echo "Once backup completes, the drive can be ejected using 'safely remove'"
+  exit 1
+}
+
+#
+# Checks pre-requisites:
+#   1) Confirms running as root
+#   2) Confirms pigz is installed for threaded compression
+#
+# args:
+#   none
+#
+# returns:
+#   no return value
+#
+# exits:
+#   with error 1 and a message if any pre-requisite is not met, else
+#   simply returns
+#
+function confirm_prereqs_or_fail() {
+  if [[ "$(whoami)" != "root" ]]; then
+    echo "Must run as root. Stopping"
+    exit 1
+  fi
+  apt show pigz &>/dev/null
+  if [[ $? != 0 ]]; then
+    echo "This script requires pigz to be installed. Stopping"
+    exit 1
+  fi
+}
+
+#
+# Searches the passed array for the passed element.
+#
+# args:
+#   $1     - the element to search for
+#   $2..$n - everything after $1 is treated as an array to search
+#
+# returns:
+#   true if the $2..$n array contains element $1, else false
+#
+function contains_element() {
+  local tofind="$1"
+  shift
+  local tosearch=("$@")
+  for s in "${tosearch[@]}"
+  do
+    [[ "$s" == "$tofind" ]] && return
+  done
+  false
+}
+
+#
+# Checks to see if the passed file/directory exists. If it does, and the -f
+# arg was not provided on the command line, then displays a message and
+# exits. Note - as a side-effect, if the path exists, and is a directory,
+# and the -f arg *was* specified, then removes the directory so it is
+# subsequently completely replaced.
+#
+# args:
+#   $1 - a path to a file, or directory
+#
+# returns:
+#   no return value
+#
+# exits:
+#   with error 1 if the passed object exists, and the -f command-line arg
+#   was not specified.
+#
+function prevent_overwrite() {
+  local exists=
+  local path="$1"
+
+  [[ -d "$path" ]] && exists=1
+  [[ -f "$path" ]] && exists=1
+  if [[ "$exists" ]] && [[ -z "$force" ]] ; then
+    echo "Path $path exists -- manually remove and retry - or - use the -f arg to allow overwriting"
+    exit 1
+  fi
+  if [[ -d "$path" ]]; then
+    # in the case of a directory, remove it because otherwise we could merge this backup
+    # into pre-existing contents from a prior backup
+    rm -rf "$path"
+    if [[ $? != 0 ]]; then
+      echo "Error attempting to remove directory prior to backup: $path"
+      exit 1
+    fi
+  fi
+}
+
+#
+# Creates a backup directory if it does not already exist, or fails. If the
+# directory already exists, does nothing.
+#
+# args:
+#   $1 - the directory to create. E.g. /media/username/usbdrive/2018-12-31. Assumes
+#        everything to the left of the right-most path component already exists. E.g.
+#        using the example cited, "/media/username/usbdrive" must exists or the
+#        function will error.
+#
+# returns:
+#   no return value
+#
+# exits:
+#   with error 1 if either the directory cannot be created
+#
+function create_backup_directory_or_fail() {
+  local backup_root="$1"
+
+  if [[ ! -d "$backup_root" ]]; then
+    echo "Creating backup directory: $backup_root"
+    mkdir $backup_root
+    if [[ $? != 0 ]]; then
+      echo "Error attempting to create backup directory: $backup_root"
+      exit 1
+    fi
+  fi
+}
+
+#
+# Checks to make sure the backup media is mounted, or fails.
+#
+# args:
+#   $1 - the backup media directory. E.g. "/media/username/usbdrive"
+#
+# returns:
+#   no return value
+#
+# exits:
+#   with error 1 if the directory is not mounted
+#
+function ensure_backup_media_is_mounted_or_fail() {
+  local backup_device=$1
+  local mounted=$(mount | grep "$backup_device")
+
+  if [[ -z "$mounted" ]]; then 
+    echo "Cannot access backup target: $backup_device (ensure device is mounted and retry)"
+    exit 1
+  fi
+}
+
+#
+# Performs the backup. Copy vs. compress logic -- see the $no_compress
+# array above
+#
+# args:
+#   $1 - backup root directory. All files will be placed into this directory
+#
+# returns:
+#   no return value
+#
+# exits:
+#   with error 1 if any error is encountered
+#
+function do_backup() {
+  local backup_root=$1
+
+  if [[ "${#include[@]}" != 0 ]]; then
+    # use the directories provided on the command line rather than the hard-coded list
+    backup_directories=("${include[@]}")
+  fi
+  
+  echo
+  echo "Beginning backup: $(date)"
+  echo "Directories to back up: ${backup_directories[@]}"
+  echo
+  
+  for backup_directory in "${backup_directories[@]}"
+  do
+    if [[ ! -d "/$backup_directory" ]]; then
+        echo "Source directory does not exist: /$backup_directory. Skipping"
+        continue
+    fi
+    if contains_element "$backup_directory" "${no_compress[@]}"; then
+      echo "Copying /$backup_directory to $backup_root"
+      prevent_overwrite "$backup_root/$backup_directory"
+      cp -r /$backup_directory $backup_root
+      if [[ $? != 0 ]]; then
+        echo "Error attempting to copy /$backup_directory to $backup_root. Stopping"
+        exit 1
+      fi
+    else
+      archive_file="$backup_root/$backup_directory.tgz"
+      echo "Compressing /$backup_directory to $archive_file"
+      prevent_overwrite "$archive_file"
+      tar cf - /$backup_directory | pigz >| $archive_file
+      if [[ $? != 0 ]]; then
+        echo "Error attempting to compress /$backup_directory to $archive_file. Stopping"
+        exit 1
+      fi
+    fi
+  done
+  echo
+  echo "Backup completed successfully: $(date)"
+  echo "Directory listing of $backup_root:"
+  ls -l "$backup_root"
+}
+
+#
+# Parses command line args. If invalid, displays usage instructions and
+# exits. Otherwise sets script-level variables from args:
+#   $force   - enables overwriting existing backup files
+#   $include - specifies a list of directories to back up other than the default list
+#
+# args:
+#   see the 'usage' function
+#
+# returns:
+#   no return value
+#
+# exits:
+#   with error 1 if any args are invalid
+#
+function parse_args() {
+  arg="$1"
+  while [[ ! -z "$arg" ]]
+  do
+    case $arg in
+      -h)
+        usage
+        ;;
+      -f)
+        force=1
+        ;;
+      -i)
+        shift
+        include="$1"
+        if [[ -z "$include" ]]; then
+          usage
+        fi
+        include=($include)
+        ;;
+      *)
+        usage
+        ;;
+    esac
+    shift
+    arg=$1
+  done
+}
+
+#
+# Main function. Steps:
+#
+#   1) Parses command-line args, setting script-level variables
+#   2) Verifies prerequisites: (a) user is running as root, (b) pigz
+#      is installed
+#   3) Makes sure the backup media is mounted
+#   4) Creates a backup directory named the current date (YYYY-MM-DD) in the
+#      backup media root directory
+#   5) Performs the backup and prints a summary message
+#
+function main() {
+  parse_args "$@"
+  confirm_prereqs_or_fail
+  backup_device="/media/$USER/seagate-backup-plus-drive"
+  ensure_backup_media_is_mounted_or_fail "$backup_device"
+  backup_root="$backup_device/$(date +%Y-%m-%d)"
+  create_backup_directory_or_fail "$backup_root"
+  do_backup "$backup_root"
+}
+
+main "$@" # entry point

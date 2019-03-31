@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+# Command history with filtering and color-coding of matching history
+#
+# Usage:
+#
+#   hist (no args)    Identical to history
+#   hist sometext     Searches command history for all occurrences of 'sometext',
+#                     and displays matching history entries with highlighting.
+# Examples:
+#
+#   hist foo          Matches "foo"
+#   hist "foo bar"    Matches "foo bar"
+#   hist -e           Matches "-e"
+#  
+
+if (( "$#" == 0 ));then
+  history
+else
+  srch="$1"
+
+  # trim leading and trailing spaces from the search token
+  srch=$(printf "%s\n" "$srch" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
+  # ignore occurrences of this command searching for this search term
+  ignore="hist\s*[\"\']*$srch[\"\']*"
+
+  history | grep -v -e "$ignore" | grep -e "$srch" --color
+fi

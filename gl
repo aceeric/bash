@@ -1,0 +1,129 @@
+#!/bin/bash
+
+# Displays git commit history for branches and files. Usage instructions are
+# displayed if run with no args.
+
+set -u
+
+#
+# Assume we will be operating on a branch. Based on args parsing, this could
+# be changed to "file"
+#
+refspec_type="branch"
+
+#
+# Main function. Parses args. Gets and displays commit history
+#
+# params: the right-most param beginning with a dash is considered a line count
+#         the right-most param *not* beginning with a dash is considered either
+#         a local branch, or a file name
+#
+function main() {
+
+  # ensure current working directory is within a git repo
+  in_git_repo="$(git rev-parse --is-inside-work-tree 2>/dev/null)"
+  if [[ -z $in_git_repo ]]
+  then
+    echo "Current directory is not a git repository"
+    return
+  fi
+
+  # Validate args. Show usage and return if invalid
+  if (( "$#" > 3 ))
+  then
+    echo "Usage:"
+    echo "  gl (no args)       -- 20 lines on the current branch"
+    echo "  gl <refspec>       -- 20 lines on <refspec>"
+    echo "  gl -n <refspec>    -- n lines on <refspec>"
+    echo "  gl -n              -- n lines on the current branch"
+    echo "(order of args is not important)"
+    echo "(refspec can be a local branch - or - a filename)"
+    return
+  fi
+
+  # set defaults: current active branch, 20 lines of history
+  refspec=$(git branch | grep -F "*" | tr -d "* ")
+  count=20
+
+  # parse args. Rightmost arg beginning with dash is the history count to display
+  # Rightmost arg not beginning with dash is branch or filename
+  for i
+  do
+    if [[ "${i:0:1}" = "-" ]]
+    then
+      count=${i:1}
+    else
+      refspec=$i
+    fi
+  done
+
+  # validate local branch or filename exists
+  exists=$(git branch | grep " ""$refspec""$")
+  if [[ -z $exists ]]
+  then
+    # try remote branch
+    exists=$(git branch -r | grep " ""$refspec""$")
+  fi
+
+  if [[ -z $exists ]]
+  then
+    if [[ -f $refspec ]]
+    then
+      refspec_type="file"
+    else
+      echo "No local branch or file - or remote branch - matches: $refspec"
+      return
+    fi
+  fi
+
+  # build a message that is relevant for refspec type
+  on_msg=""
+  if [[ $refspec_type == "branch" ]]
+  then
+    on_msg="on branch"
+  else
+    on_msg="for file"
+  fi
+
+  # get the count of available commits for refspec
+  IFS= commits=$(git log --pretty=format:"%h" $refspec)
+  commits=$(echo $commits | head -n $count | wc -l)
+
+  # build final header message
+  if (( $commits < $count ))
+  then
+    msg="Most recent $commits commits $on_msg: $refspec ($count requested, but only $commits avaliable)"
+  else
+    msg="Most recent $count commits $on_msg: $refspec"
+  fi
+
+  # truncate the commit message to fit into available screen width for a nice compact display
+  SHA=8
+  space=1
+  who=30
+  date=21 # 10 if author date only, 21 if author and committer date
+  cols=$(tput cols)
+  msgwidth=$( expr $cols - $SHA - $space - $who - $space - $date - $space )
+
+  # make the overline/underline to enclose the message
+  uline=""
+  for ((i=1;i<=${#msg};i++)); do uline="$uline-"; done
+
+  # display the message
+  echo -e "\n$uline\n$msg\n$uline"
+
+  # header over history
+  echo -e "$(tput bold)$(tput setaf 3)hash     author                         author dt. commit dt. comment$(tput sgr0)"
+
+  # show the commit history
+  git log --pretty=format:"%C(bold red)%<(8,trunc)%h%Creset %Cgreen%<(30,trunc)%aN%Creset %C(bold blue)%ad %cd%Creset %<($msgwidth,trunc)%s" --date=short $refspec | head -n $count
+
+  if (( $commits < $count ))
+  then
+    # in this case, head inexplicably does not emanate a final newline...
+    echo
+  fi
+  echo
+}
+
+main "$@"

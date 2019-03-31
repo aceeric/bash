@@ -1,0 +1,91 @@
+#!/bin/bash
+
+##
+# Displays the next wallpaper, round-robin, from the directory provided
+# in arg one. Doesn't validate file types - assumes the user provides a
+# directory that contains exclusively image files (or directories, which
+# the script ignores.)
+#
+# usage:
+# 
+# wpslide /home/$USER/Pictures
+#
+# tested configuration:
+#   Ubuntu 18.04.1 LTS
+#   GNU bash, version 4.4.19(1)-release (x86_64-pc-linux-gnu)
+##
+
+##
+# holds the currently displayed wallpaper. The gsettings command returns the
+# value like: 'file:///dir1/dir2/image-file.jpg'
+##
+current_wallpaper=$(gsettings get org.gnome.desktop.background picture-uri)
+
+##
+# maps $1 to a name: specifies the directory that contains the wallpaper image
+# files
+##
+wallpapers="$1"
+if [[ -z "$wallpapers" ]]; then
+  echo "Must provide a directory. E.g.: 'wpslide /home/$USER/Pictures'"
+  exit 1
+fi
+if [[ ! -d "$wallpapers" ]]; then
+  echo "$wallpapers is not a directory"
+  exit 1
+fi
+
+##
+# toggles to "yes", once the script finds the currently displayed wallpaper
+# in the passed wallpaper directory
+##
+found_current="no"
+
+##
+# saves the first wallpaper in the directory. If the currently displayed wallpaper
+# is the last image in the directory, then the script wraps around to the first
+# image in the directory (round-robin)
+##
+first_wallpaper=""
+
+##
+# main loop
+##
+for wallpaper in "$wallpapers"/*
+do
+  if [[ -d "$wallpaper" ]]
+  then
+    continue  # ignore directories
+  fi
+  if [[ -z "$first_wallpaper" ]]
+  then
+    first_wallpaper="$wallpaper"
+    if [[ -z "$current_wallpaper" ]]
+    then
+      # no wallpaper is currently displayed, so display the first
+      gsettings set org.gnome.desktop.background picture-uri "file://$first_wallpaper"
+      exit 0
+    fi
+  fi
+  if [[ "$found_current" == "yes" ]]
+  then
+    # found the current last time through, so this one is the next one after
+    gsettings set org.gnome.desktop.background picture-uri "file://$wallpaper"
+    exit 0
+  elif [[ "'file://$wallpaper'" == "$current_wallpaper" ]]
+  then
+    # this entry in the directory is the one currently displayed
+    found_current="yes"
+  fi
+done
+
+##
+# if the script read the whole directory and didn't exit, then the current is
+# the last, so wrap around to the first - assuming a first was actually found
+##
+if [[ ! -z "$first_wallpaper" ]]
+then
+  gsettings set org.gnome.desktop.background picture-uri "file://$first_wallpaper"
+else
+  echo "$wallpapers does not appear to contain any files"
+fi

@@ -1,0 +1,237 @@
+#!/bin/bash
+#
+# I was working in a Docker Linux container and the 'tree' command was not
+# available. So I got to wondering how difficult it would be to write a
+# simple 'tree' shell script, and this is the result. Probably not super-useful
+# but it was an interesting exercise. Uses the 'find' command to navigate the
+# file system, and formats the results like 'tree'.
+#
+# (Tested only on Ubuntu 18.04.2 LTS)
+#
+
+set -o errexit -o nounset -o pipefail
+
+#
+# Defines the maximum recursion depth. Set via '--max-level'
+#
+max_level=100
+
+#
+# The initial directory to generate the tree from. Set via positional
+# param zero
+#
+root=
+
+#
+# If 1, include entries beginning with a dot. Else exclude. Set via
+# '--include-dotted'
+#
+include_dotted=0
+
+#
+# If 1, sort alphabetically, else sort in the order presented by the
+# find command. Set via '--sort'
+#
+sort=0
+
+#
+# Running tally of directories
+#
+dircnt=0
+
+#
+# Running max recursion depth
+#
+max_level_reached=0
+
+#
+# Prints usage instructions
+#
+# Params:
+#
+#   None
+#
+# Returns:
+#
+#   Nothing
+#
+function usage() {
+  while IFS= read -r line; do
+    echo "$line"
+  done <<< '
+    A very simple bash version of the '"'tree'"' command. Prints a directory tree to stdout,
+    like its more powerful namesake. Only prints directories. If permissions do not allow
+    recursing into a directory, then prints "(no access)" next to the directory entry in
+    the tree.
+    
+    Usage: tre [-h,--help] [-l,--max-level #] [-i,--include-dotted]
+           [-s,--sort] <directory>
+    
+    Options:
+    
+      -h,--help           Prints this help and exits
+      -l,--max-level #    Specifies the max traversal depth. Default is 100
+      -i,--include-dotted Includes directories beginning with a period. (Excludes
+                          them by default)
+      -s,--sort           Sorts alphabetically. If not specified, then sorts in
+                          the order encountered in the directory
+
+    Example:
+    
+      tre --max-level 1 --sort /
+    '
+}
+
+#
+# Parses the command line and sets script variables
+#
+# Params:
+#
+#   $@ - The entire command line
+#
+# Returns:
+#
+#   Nothing
+#
+# Exits:
+#
+#   If parse error, or, supplied directory does not exist or is not accessible
+#
+# Sets script vars:
+#   max_level      -- from '--max-level'
+#   include_dotted -- from '--include-dotted'
+#   sort           -- from '--sort'
+#   root           -- from the one (and only) positional param allowed
+#
+function parse_args() {
+  options=hl:is
+  longoptions=help,max-level:,include-dotted,sort
+  parsed=$(getopt --options=$options --longoptions=$longoptions --name "$0" -- "$@")
+  eval set -- "$parsed"
+  while true; do
+    case "$1" in
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      -l|--max-level)
+        max_level="$2"
+        shift 2
+        ;;
+      -i|--include-dotted)
+        include_dotted=1
+        shift 1
+        ;;
+      -s|--sort)
+        sort=1
+        shift 1
+        ;;
+      --)  
+        shift
+        break
+        ;;
+      *)
+        # can we ever reach this?
+        echo "$0: Unsupported arg: $1"
+        exit 1
+        ;;
+    esac
+  done
+
+  if [[ $# -eq 0 ]]; then
+    usage
+    exit 0
+  elif [[ $# -ne 1 ]]; then
+    echo "$0: You must specify exactly one directory to tree"
+    exit 1
+  elif [[ ! -r "$1" ]]; then
+    echo "$0: '$1' does not appear to be a directory, or, you don't have access"
+    exit 1
+  fi
+  # convert path to absolute
+  root=$(pushd "$1" >/dev/null;pwd;popd >/dev/null)
+}
+
+#
+# Lists directories in the passed path, and recurses into each directory,
+# listing its contents in turn, thus generating the tree.
+#
+# Params:
+#
+#   $1 - The full path to list
+#   $2 - The current recursion level. Initial call is level one
+#   $3 - A string to prefix to the current directory's name to
+#        generate a tree-like display
+#
+# Returns:
+#
+#   Nothing
+#
+function onedir() {
+  local path="$1"
+  local level="$2"
+  local indent="$3"
+
+  if [[ $level == 1 ]]; then
+    echo "$path"
+    dircnt=1
+  fi  
+
+  if [[ $sort == 1 ]]; then
+    local sorter="sort"
+  else  
+    local sorter="cat"
+  fi  
+
+  if [[ $level -gt $max_level_reached ]]; then
+    max_level_reached=$level
+  fi
+  
+  local dirlist=()
+  while read -r dir; do
+    if [[ "$dir" == "$path" ]]; then
+      continue  # don't add the directory being listed to the list of directories
+    fi
+    local tmp=$(basename "$dir")
+    if [[ "${tmp:0:1}" == "." && $include_dotted == 0 ]];then
+      continue
+    fi
+    dirlist+=("$dir")
+  done < <(find "$path" -maxdepth 1 -type d | $sorter)
+
+  local cnt=${#dirlist[@]}
+  local cur=0
+  for dir in "${dirlist[@]}"; do
+    cur=$((cur + 1))
+    if [[ ! -r "$dir" ]]; then
+      local access=" (no access)"
+    else
+      local access=
+    fi
+    if (($cur == $cnt)); then
+      local prefix="└──"
+    else
+      local prefix="├──"
+    fi
+    local dirname=$(basename "$dir")
+    echo "$indent$prefix$dirname$access"
+    dircnt=$((dircnt + 1))
+    if [[ -z $access && $level -lt $max_level ]]; then
+      if (($cur == $cnt)); then
+        local indent2="   "
+      else
+        local indent2="│  "
+      fi
+      onedir "$dir" $(expr $level + 1) "$indent$indent2"
+    fi
+  done
+}
+
+#
+# entry point
+#
+
+parse_args "$@"
+onedir "$root" 1 ""
+echo -e "\n$dircnt $([ $dircnt == 1 ] && echo 'directory' || echo 'directories')."\
+  "Depth reached: $max_level_reached"

@@ -1,0 +1,30 @@
+#!/bin/bash
+#
+# Dumps the apt history log in condensed format.
+#
+# Usage:
+#
+#   apt-hist with no args dumps only 'apt' or 'apt-get' commands
+#
+#   apt-hist all -- dumps all commands
+#
+# (Tested on Ubuntu 18.04.2 LTS / bash 4.4.20(1)-release)
+#
+
+for logfile in /var/log/apt/history.log /var/log/apt/history.log.*.gz
+do
+  while IFS= read -r line
+  do
+    if [[ $line == $'Start-Date: '* ]]; then
+      startdate=$(echo "${line:12}" | tr -s " ") # remove extra space between date and time
+    elif [[ "$1" == "all" && $line == $'Commandline: '* ]]; then
+      list="$list$startdate -- ${line:13}\n"
+    elif [[ $line == $'Commandline: apt-get'* ]]; then
+      list="$list$startdate -- ${line:21}\n"
+    elif [[ $line == $'Commandline: apt '* ]]; then
+      list="$list$startdate -- ${line:17}\n"
+    fi
+  done < <(zcat -f $logfile)
+done
+
+echo -e "$list" | sort -r

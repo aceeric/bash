@@ -1,0 +1,185 @@
+#!/bin/bash
+#
+# Command-line arg parse and usage instructions bash script template.
+# Tested under GNU bash, version 4.4.20(1)-release (x86_64-pc-linux-gnu)
+#
+
+#
+# Declare short and long options here. Colon means a value can be supplied
+# on the command line, like '-x XXX', or, '--xopt=XXX'. Short options are
+# single letters. Long options are more than one letter.
+#
+short_opts=hvl:
+long_opts=help,verbose,level:
+script_name=$(basename "$0")
+
+#
+# corresponds to -v|--verbose with a default of false. This is a "switch"-type
+# option: its presence on the command line turns it on. Its absense from the command
+# line results in it having its default value ("off" in this case.)
+#
+verbose=0
+
+#
+# corresponds to -l|--level with a default of one. This is an option that takes
+# a parameter. To require a param on the command line, initialize the variable like
+# 'level=' and then check if the variable has a value in the parse_args
+# validation logic.
+#
+level=1
+
+#
+# Positional params
+#
+positional=
+
+#
+# Prints usage instructions
+#
+# Params:
+#
+#   None
+#
+# Returns:
+#
+#   Nothing
+#
+function usage() {
+  while IFS= read -r line; do
+    echo "$line"
+  done <<< '
+    A template script for parsing command-line options, and displaying usage
+    instructions. Intended to be cloned as the starting point for new
+    scripts that require arg parsing.
+    
+    Usage: args-and-usage [-h,--help] [-l,--level #]
+           [-v,--verbose] param
+    
+    Options:
+    
+      -h,--help     Prints this help and exits
+      -l,--level #  Specifies a hypothetical level. Default is 1 if not specified
+      -v,--verbose  Sets verbose mode on. Verbose mode is off by default
+
+    Positional params:
+
+      You must supply exactly one positional parameter.
+
+    Examples:
+    
+      args-and-usage --level=2 foo
+      
+      Sets level 2, leaves verbose turned off (the default) and supplies
+      one positional parameter: '"'foo'"'
+
+      args-and-usage --verbose foobar
+      
+      Uses the default level 1, sets verbose on, and supplies one positional
+      parameter: '"'foobar'"'
+
+      args-and-usage -vl 10 hello
+      
+      Sets level 10, sets verbose on, and supplies positional param '"'hello'"'
+    '
+}
+
+#
+# Helps interpret values parsed by getopt
+#
+# Params:
+#
+#   $1 is an option parameter parsed by getopt
+#
+# Returns:
+#
+#   If $1 starts with the equals sign, then returns everything after the equals
+#   sign. Otherwise returns $1 unmodified. Because if the user specifies a short
+#   option with the equal sign, (e.g. '-l=100') getopt includes the equal in the
+#   parsed option value. Technically the user shouldn't do that, but if they do
+#   we want to handle that. If the user specifies an option in any of the
+#   following forms, the parsed value will be correct:
+#     -l100
+#     -l 100
+#     -l=100
+#     --level=100
+#     --level 100
+#   (By the way, 'getopt' will parse -l100 and pick out the value 100, but will
+#   not parse --level100)
+#
+function opt_val() {
+  opt="$1"
+  if [[ "$opt" == =* ]]; then
+    echo "${opt:1}"
+  else
+    echo "$opt"
+  fi
+}
+
+#
+# Parses the command line and sets script variables
+#
+# Params:
+#
+#   $@ - The entire command line
+#
+# Returns:
+#
+#   Nothing
+#
+# Exits:
+#
+#   If parse error
+#
+# Sets script variables:
+#
+#   level      -- from '-l|--level'
+#   verbose    -- from '-v|--verbose'
+#   positional -- from positional params
+#
+
+function parse_args() {
+  local parsed=$(getopt --options $short_opts --longoptions $long_opts -n $script_name -- "$@")
+  
+  if [[ "$?" -ne 0 ]]; then
+    exit 1
+  fi
+
+  eval set -- "$parsed"
+
+  while true; do
+    case "$1" in
+      -h|--help)
+        usage
+        exit 1
+        ;;
+      -l|--level)
+        level=$(opt_val "$2")
+        shift 2
+        ;;
+      -v|--verbose)
+        verbose=1
+        shift 1
+        ;;
+      --)
+        shift
+        break
+        ;;
+    esac
+  done
+
+  # This script demonstrates requiring one positional param
+  if [[ $# -ne 1 ]]; then
+    echo "$script_name: You must specify exactly one positional parameter"
+    exit 1
+  fi
+  positional="$@"
+}
+
+#
+# Entry point
+#
+parse_args "$@"
+
+echo "verbose    = $verbose"
+echo "level      = $level"
+echo "positional = $positional"

@@ -3,7 +3,8 @@ Useful Bash shell scripts. I don't do a ton of Bash shell scripting, but this pr
 
 | Shell script | Description |
 | --- | --- |
-| apt-hist | Displays a condensed history of apt commands sorted in descending order|
+| apt-hist | Displays a condensed history of apt commands sorted in descending order |
+| args-and-usage | Demonstrates parsing command-line args and displaying usage instructions |
 | dirsize | Prints directories and their sizes in descending order |
 | do-backup | Performs a backup of selected directories to a removable drive |
 | gl | Displays git commit history nicely formatted - single line per commit - fitted to the console |

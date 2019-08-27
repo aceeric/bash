@@ -62,7 +62,7 @@ function main {
   cur_line=1
   OIFS=$IFS
   IFS=$'\n'
-  for line in $(sudo du -b -d 1 --exclude /proc --exclude /run "$directory" | sort -nr)
+  for line in $(sudo du -B1 -d 1 --exclude /proc --exclude /run "$directory" | sort -nr)
   do
     size=$(echo $line | cut -f1)
     name=$(echo $line | cut -f2)

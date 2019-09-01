@@ -1,17 +1,38 @@
 #!/bin/bash
 #
-# Prints system info. Tested on Ubuntu 18.04.3 LTS, GNU bash,
-# version 4.4.20(1)-release (x86_64-pc-linux-gnu)
+# Prints system info by invoking shell commands. Tested on
+# Ubuntu 18.04.3 LTS, GNU bash, version 4.4.20(1)-release
+# (x86_64-pc-linux-gnu)
+#
+# Note:
+#
+# This script uses pass-by-reference functionality in some functions
+# by virtue of local function variable decls using the '-n' flag.
+# See: 'https://www.gnu.org/software/bash/manual/html_node/Shell-Parameters.html'
+# for info.
+#
+# TODO:
+#  - lspci
+#  - findmnt
+#  - df
+#  - du
+#  - free
+#  - lscpu
+#  - lshw
+#  - fdisk
+#  - hwinfo
+#  - dmidecode? (docs say info is often inaccurate)
 
 #
 # Supported cmd-line options
 #
-short_opts=hmba
-long_opts=help,mounts,blockdevs,all
+short_opts=hmbpa
+long_opts=help,mounts,blockdevs,partitions,all
 script_name=$(basename "$0")
 
 #
-# A list of the functions to call, based on the passed params
+# A list of the functions to call, based on the passed params. Populated
+# by the 'parse_args' function
 #
 infos=()
 
@@ -31,23 +52,26 @@ function usage() {
     echo "${line:4}"
   done <<< '
     Prints system information, as determined by the passed args. Sudo
-    should be used to get all available info.
+    should be used to get all available info. (Some commands invoked
+    by the script require sudo.)
     
-    Usage: sysinfos [-h,--help] [-m,--mounts]
+    Usage: sysinfos [-h,--help] [-m,--mounts] [-p,--partitions]
            [-b,--blockdevs] [-a,--all]
     
     Options:
     
-      -m,--mounts     Prints mounts via the '"'mount'"' command
-      -b,--blockdevs  Prints block devices via the '"'lsblk'"' command
-      -a,--all        Prints all system infos listed above
-      -h,--help       Prints this help and exits
+      -m,--mounts      Prints mounts via the '"'mount'"' command
+      -p,--partitions  Prints the partition table for each disk
+                       via the '"'parted'"' command
+      -b,--blockdevs   Prints block devices via the '"'lsblk'"' command
+      -a,--all         Prints all system infos listed above
+      -h,--help        Prints this help and exits
 
     Examples:
     
-      susod sysinfos -a
+      suso sysinfos -a
       
-      Prints all system information. (Can be quite a large display)
+      Prints all system information
     '
 }
 
@@ -55,7 +79,7 @@ function usage() {
 # Parses the command line and sets script variables
 #
 # Params:
-#'"'
+#
 #   $@ - The entire command line
 #
 # Returns:
@@ -76,13 +100,15 @@ function usage() {
 
 function parse_args() {
   local parsed=$(getopt --options $short_opts --longoptions $long_opts -n $script_name -- "$@")
-  
+
   if [[ "$?" -ne 0 ]]; then
     exit 1
   fi
 
   eval set -- "$parsed"
 
+  local supported_infos=(blkdevs mounts partitions)
+  
   while true; do
     case "$1" in
       -h|--help)
@@ -90,16 +116,20 @@ function parse_args() {
         exit 1
         ;;
       -a|--all)
-        infos=(blkdevs mounts)
+        infos=("${supported_infos[@]}")
         shift "$#"  # empty the command line
         break
         ;;
-      -m|--mounts)
-        infos=($infos mounts)
+      -b|--blkdevs)
+        infos=($infos ${supported_infos[0]})
         shift 1
         ;;
-      -b|--blkdevs)
-        infos=($infos blkdevs)
+      -m|--mounts)
+        infos=($infos ${supported_infos[1]})
+        shift 1
+        ;;
+      -p|--partitions)
+        infos=($infos ${supported_infos[2]})
         shift 1
         ;;
       --)
@@ -118,6 +148,10 @@ function parse_args() {
     exit 1
   fi
 }
+
+#
+# utility functions
+#
 
 #
 # Prints a header from the passed args. The args are expected in
@@ -158,25 +192,6 @@ function print_hdr() {
   echo -e "$hdr_line\n$under_line"
 }
 
-# TODO sudo parted -l
-
-
-# TODO list PCI devices
-# ----------------
-#$lspci -vvv | less
-
-
-# TODO list all disks
-# --------------
-#$ sudo lshw -class disk -short
-
-
-# TODO Display partitions for disks
-# ----------------------------
-#$ sudo fdisk -l /dev/sda
-
-# TODO hwinfo --short
-
 #
 # Calculates the length of each element in the passed col array. If
 # the length exceeds the length at the same position in the passed
@@ -205,21 +220,6 @@ function print_hdr() {
 # The result would print: '5 5 8' because only the second column
 # had a greater length then the passed lengths.
 #
-# Notes:
-#
-# This function receives the passed arrays into variables declared
-# with the '-n' flag. And, passing the args to the function is done
-# differently than in typical bash fashion: the variable passed to
-# the function is not prefixed by a dollar sign. This combination
-# of passing without the dollar sign and receiving with the local
-# '-n' flag results in pass by reference. See: 'https://
-# stackoverflow.com/questions/10953833/passing-multiple-distinct-
-# arrays-to-a-shell-function'
-#
-# Seems to be backed up by this:
-# 'https://www.gnu.org/software/bash/manual/html_node/Shell-
-# Parameters.html'
-#
 function calc_lens() {
   local -n len_array=$1
   local -n col_array=$2
@@ -229,28 +229,79 @@ function calc_lens() {
   echo ${len_array[@]}
 }
 
-
+#
+# Prints the passed value array to the console, formatting each
+# element to the width specified in the same lengths array at the
+# same array offset. The passed widths are increased by two to add
+# some spacing.
+#
+# Params:
+#
+#   $1 - A value array. E.g. (foo bar baz)
+#   $2 - A length array matching the passed value array. E.g.:
+#        (10, 5 8)
+#   $3 - If 'true', then print an underline under the passed line. If
+#        'false' or not provided, then don't print an underline.
+#
+# Returns:
+#
+#   Nothing
+#
+# Example:
+#
+#   values=(foo bar baz)
+#   lengths=(10 5 8)
+#   print_line values length "true"
+#
+#   Would produce the following console output:
+#
+#   foo         bar    baz
+#   ----------  -----  --------
+#
 function print_line() {
-  local -n values=$1
-  local -n lens=$2
+  local -n _values=$1
+  local -n _lens=$2
   local underline="${3:false}"
   local fmt=""
-  for len in "${lens[@]}"; do
+  for len in "${_lens[@]}"; do
     ((len+=2))
     fmt="$fmt%-${len}s"
   done
-  printf "$fmt\n" "${values[@]}"
+  printf "$fmt\n" "${_values[@]}"
   if [[ "$underline" == "true" ]]; then
     local uline=$(printf "%0.s-" {1..500})
     local under_line=""
-    for len in "${lens[@]}"; do
+    for len in "${_lens[@]}"; do
       under_line="$under_line$(echo ${uline::$len})  "
     done
     echo "$under_line"
   fi
 }
 
-# extract values from nvp in $3 using names in $2 and store in $1 by ref
+#
+# Extracts values from the passed line of name/value pairs, and
+# stores them in the passed array which the caller passes by ref.
+#
+# Params:
+#
+#   $1 - a value array to populate. The function populate this array
+#        by reference,
+#   $2 - an array of names, to enable the function to get the values.
+#        E.g.: (NAME KNAME TYPE FSTYPE MOUNTPOINT UUID SIZE LABEL)
+#   $3 - a line of name value pairs, e.g.: NAME="sda" KNAME="sda"
+#        TYPE="disk" FSTYPE="" MOUNTPOINT="" UUID="" SIZE="465.8G" LABEL=""
+#
+# Returns:
+#
+#   Nothing
+#
+# Changes:
+#
+#   Populates the array refernced by $1 (which the caller should pass
+#   as an empty array - the function does not initialize it). Using the
+#   param examples above, the array would look like: ("sda" "sda" "disk"
+#   "" "" "" "465.8G" "")
+#
 function extract_values() {
   local -n vals=$1
   local -n nms=$2
@@ -264,10 +315,26 @@ function extract_values() {
   done
 }
 
+#
+# info printing functions - one per supported cmd-line arg
+#
+
+#
+# Prints block devices, via the 'lsblk' command
+#
+# Params:
+#
+#   None
+#
+# Returns:
+#
+#   Nothing
+#
 function blkdevs() {
   local names=(NAME KNAME TYPE FSTYPE MOUNTPOINT UUID SIZE LABEL)
   local lengths=(0 0 0 0 0 0 0 0)
   lengths=($(calc_lens lengths names))
+  # TODO store in a simulated 2D array so we don't have to invoke lsblk twice?
   while IFS= read -r line; do
     output=()
     extract_values output names "$line"
@@ -280,6 +347,55 @@ function blkdevs() {
     extract_values output names "$line"
     print_line output lengths
   done < <(lsblk -o NAME,KNAME,TYPE,FSTYPE,MOUNTPOINT,UUID,SIZE,LABEL -P | grep -v loop)
+}
+
+#
+# Prints partition tables, via the 'parted' command
+#
+# Params:
+#
+#   None
+#
+# Returns:
+#
+#   Nothing
+#
+function partitions() {
+  local lines=()
+  local is_dev=false
+  local dev_line=
+  while IFS= read -r line; do
+    if [[ -z "$line" ]]; then
+      :
+    elif [[ "$line" == "BYT;" ]]; then
+      is_dev=true
+    elif [[ $is_dev == true ]]; then
+      dev_line="${line:0:-1}"
+      is_dev=false
+    else
+      lines=("${lines[@]}" "$dev_line${line:0:-1}")
+      dev_line=(":::::::")  # don't repeat the disk info
+    fi
+  done < <(parted -lm)
+
+  local columns=(DISK SIZE TYPE "SECTORS (L)" "SECTORS (P)" "PART TYP" MODEL "#"  START END SIZE "FILE SYSTEM" NAME FLAGS)
+  local lengths=(0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+  lengths=($(calc_lens lengths columns))
+
+  local output=()
+  for ((i = 0; i < ${#lines[@]}; i++))
+  do
+    IFS=':' read -r -a output <<< "${lines[$i]}"
+    lengths=($(calc_lens lengths output))
+  done
+
+  echo -e "PARTITIONS (parted)\n"
+  print_line columns lengths true
+  for ((i = 0; i < ${#lines[@]}; i++))
+  do
+    IFS=':' read -r -a output <<< "${lines[$i]}"
+    print_line output lengths
+  done
 }
 
 #
@@ -329,7 +445,6 @@ function mounts() {
     printf "%-${c1}s%-${c2}s%-${c3}s%-${c4}s\n" ${line[0]} ${line[2]} ${line[4]} ${line[5]}
   done
 }
-
 
 #
 # Entry point

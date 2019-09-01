@@ -7,7 +7,8 @@ Useful Bash shell scripts. I don't do a ton of Bash shell scripting, but this pr
 | args-and-usage | Demonstrates parsing command-line args and displaying usage instructions |
 | dirsize | Prints directories and their sizes in descending order |
 | do-backup | Performs a backup of selected directories to a removable drive |
-| gl | Displays git commit history nicely formatted - single line per commit - fitted to the console |
+| gl | Git Log. Displays git commit history nicely formatted - single line per commit - fitted to the console |
 | hist | Displays command history filtered on search terms with matches highlighted |
+| sysinfos | Invokes various linux utils to gather system info and just formats the outputs differently. Mostly an exercise in parsing & formatting |
 | tre | Displays a directory tree using bash. Just as an interesting shell programming exercise |
 | wpslide | Wallpaper slide-show. On each run, displays the next wallpaper from a directory in round-robin style |

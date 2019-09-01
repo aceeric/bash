@@ -1,0 +1,342 @@
+#!/bin/bash
+#
+# Prints system info. Tested on Ubuntu 18.04.3 LTS, GNU bash,
+# version 4.4.20(1)-release (x86_64-pc-linux-gnu)
+
+#
+# Supported cmd-line options
+#
+short_opts=hmba
+long_opts=help,mounts,blockdevs,all
+script_name=$(basename "$0")
+
+#
+# A list of the functions to call, based on the passed params
+#
+infos=()
+
+#
+# Prints usage instructions
+#
+# Params:
+#
+#   None
+#
+# Returns:
+#
+#   Nothing
+#
+function usage() {
+  while IFS= read -r line; do
+    echo "${line:4}"
+  done <<< '
+    Prints system information, as determined by the passed args. Sudo
+    should be used to get all available info.
+    
+    Usage: sysinfos [-h,--help] [-m,--mounts]
+           [-b,--blockdevs] [-a,--all]
+    
+    Options:
+    
+      -m,--mounts     Prints mounts via the '"'mount'"' command
+      -b,--blockdevs  Prints block devices via the '"'lsblk'"' command
+      -a,--all        Prints all system infos listed above
+      -h,--help       Prints this help and exits
+
+    Examples:
+    
+      susod sysinfos -a
+      
+      Prints all system information. (Can be quite a large display)
+    '
+}
+
+#
+# Parses the command line and sets script variables
+#
+# Params:
+#'"'
+#   $@ - The entire command line
+#
+# Returns:
+#
+#   Nothing
+#
+# Exits:
+#
+#   With an error message to the console if there is a parse error
+#
+# Sets script variables:
+#
+#   infos -- Based on the command-line options, this will contain a list
+#            of functions to call matching the defined arg. E.g. if "-b"
+#            is specified, then this variable will contain "blkdevs" - which
+#            is the function that prints info about block devices.
+#
+
+function parse_args() {
+  local parsed=$(getopt --options $short_opts --longoptions $long_opts -n $script_name -- "$@")
+  
+  if [[ "$?" -ne 0 ]]; then
+    exit 1
+  fi
+
+  eval set -- "$parsed"
+
+  while true; do
+    case "$1" in
+      -h|--help)
+        usage
+        exit 1
+        ;;
+      -a|--all)
+        infos=(blkdevs mounts)
+        shift "$#"  # empty the command line
+        break
+        ;;
+      -m|--mounts)
+        infos=($infos mounts)
+        shift 1
+        ;;
+      -b|--blkdevs)
+        infos=($infos blkdevs)
+        shift 1
+        ;;
+      --)
+        shift
+        break
+        ;;
+    esac
+  done
+
+  if [[ $# -ne 0 ]]; then
+    echo "$script_name: No positional params are supported"
+    exit 1
+  fi
+  if [[ ${#infos[@]} -eq 0 ]]; then
+    echo "$script_name: No infos were specified - nothing to do"
+    exit 1
+  fi
+}
+
+#
+# Prints a header from the passed args. The args are expected in
+# pairs, in which the first pair value is a header, and the second
+# pair value is the length to pad the header to. The headers are
+# printed with an underline, and are aligned to the passed lengths,
+# plus one for a spacer.
+#
+# Params:
+#
+#   A variable length list of header/length pairs
+#
+# Returns:
+#
+#   Nothing
+#
+# Example:
+#
+#   print_hdr THIS 10 IS 5 A 4 "HEADER LINE" 15
+#
+#   Would print this to the console:
+#
+#   THIS       IS    A    HEADER LINE
+#   ---------- ----- ---- ---------------
+#
+function print_hdr() {
+  local args=("$@")
+  local uline=$(printf "%0.s-" {1..500})
+  local hdr_line=""
+  local under_line=""
+  for ((i = 0; i < ${#args[@]}; i+=2)); do
+    hdr="${args[$i]}"
+    len=${args[(($i+1))]}
+    hdr=$(printf "%-${len}s" "$hdr")
+    hdr_line="$hdr_line$(printf "%-${len}s" "$hdr")"
+    under_line="$under_line$(echo ${uline::$((len-1))}) "
+  done
+  echo -e "$hdr_line\n$under_line"
+}
+
+# TODO sudo parted -l
+
+
+# TODO list PCI devices
+# ----------------
+#$lspci -vvv | less
+
+
+# TODO list all disks
+# --------------
+#$ sudo lshw -class disk -short
+
+
+# TODO Display partitions for disks
+# ----------------------------
+#$ sudo fdisk -l /dev/sda
+
+# TODO hwinfo --short
+
+#
+# Calculates the length of each element in the passed col array. If
+# the length exceeds the length at the same position in the passed
+# lengths array, then updates the length in the length array from the
+# length of the column element. Thus, calling this function in a loop
+# with column arrays containing various length elements will result
+# in the calculation of the max length of each position. This can
+# then be used to format a columnar output.
+#
+# Params:
+#
+#   $1 - an array of column lengths. E.g. (14 2 11 5)
+#   $2 - an arry of column values. E.g. (this is some data)
+#
+# Returns:
+#
+#   The potentially updated array in $1
+#
+# Example:
+#
+# lens=(5 2 8)
+# cols=(AA BBBBB CCC)
+# lens=($(calc_lens lens cols))
+# echo "${lens[@]}"
+#
+# The result would print: '5 5 8' because only the second column
+# had a greater length then the passed lengths.
+#
+# Notes:
+#
+# This function receives the passed arrays into variables declared
+# with the '-n' flag. And, passing the args to the function is done
+# differently than in typical bash fashion: the variable passed to
+# the function is not prefixed by a dollar sign. This combination
+# of passing without the dollar sign and receiving with the local
+# '-n' flag results in pass by reference. See: 'https://
+# stackoverflow.com/questions/10953833/passing-multiple-distinct-
+# arrays-to-a-shell-function'
+#
+# Seems to be backed up by this:
+# 'https://www.gnu.org/software/bash/manual/html_node/Shell-
+# Parameters.html'
+#
+function calc_lens() {
+  local -n len_array=$1
+  local -n col_array=$2
+  for ((i = 0; i < ${#col_array[@]}; i++)); do
+    [[ ${#col_array[$i]} -gt ${len_array[$i]} ]] && len_array[$i]=${#col_array[$i]}
+  done
+  echo ${len_array[@]}
+}
+
+
+function print_line() {
+  local -n values=$1
+  local -n lens=$2
+  local underline="${3:false}"
+  local fmt=""
+  for len in "${lens[@]}"; do
+    ((len+=2))
+    fmt="$fmt%-${len}s"
+  done
+  printf "$fmt\n" "${values[@]}"
+  if [[ "$underline" == "true" ]]; then
+    local uline=$(printf "%0.s-" {1..500})
+    local under_line=""
+    for len in "${lens[@]}"; do
+      under_line="$under_line$(echo ${uline::$len})  "
+    done
+    echo "$under_line"
+  fi
+}
+
+# extract values from nvp in $3 using names in $2 and store in $1 by ref
+function extract_values() {
+  local -n vals=$1
+  local -n nms=$2
+  local line="$3"
+  for nvp in "$line"; do
+    for nm in ${nms[@]}; do
+      regex=".*$nm=\"([^\"]*)\""
+      [[ $line =~ $regex ]]
+      vals=("${vals[@]}" "${BASH_REMATCH[1]}")
+    done
+  done
+}
+
+function blkdevs() {
+  local names=(NAME KNAME TYPE FSTYPE MOUNTPOINT UUID SIZE LABEL)
+  local lengths=(0 0 0 0 0 0 0 0)
+  lengths=($(calc_lens lengths names))
+  while IFS= read -r line; do
+    output=()
+    extract_values output names "$line"
+    lengths=($(calc_lens lengths output))
+  done < <(lsblk -o NAME,KNAME,TYPE,FSTYPE,MOUNTPOINT,UUID,SIZE,LABEL -P | grep -v loop)
+  echo -e "BLOCK DEVICES (lsblk)\n"
+  print_line names lengths true
+  while IFS= read -r line; do
+    output=()
+    extract_values output names "$line"
+    print_line output lengths
+  done < <(lsblk -o NAME,KNAME,TYPE,FSTYPE,MOUNTPOINT,UUID,SIZE,LABEL -P | grep -v loop)
+}
+
+#
+# Prints mounts, via the 'mount' command
+#
+# Params:
+#
+#   None
+#
+# Returns:
+#
+#   Nothing
+#
+function mounts() {
+  local c1=0
+  local c2=0
+  local c3=0
+  local c4=0
+  local lines=()
+  
+  # tablulate the max length of each column so we can
+  # format the data nicely
+  while IFS= read -r line; do
+    # retain lines for printing later
+    lines=("${lines[@]}" "$line")
+    # convert line to array
+    line=($line)
+    [[ ${#line[0]} -gt $c1 ]] && c1=${#line[0]}
+    [[ ${#line[2]} -gt $c2 ]] && c2=${#line[2]}
+    [[ ${#line[4]} -gt $c3 ]] && c3=${#line[4]}
+    [[ ${#line[5]} -gt $c4 ]] && c4=${#line[5]}
+  done < <(mount | grep -v snapd | grep -v cgroup | sort)
+
+  # add spacing
+  c1=$(($c1+2))
+  c2=$(($c2+2))
+  c3=$(($c3+2))
+  c4=$(($c4+2))
+
+  echo -e "MOUNTS (mount)\n"
+  print_hdr "DEVICE" $c1 "MOUNTED ON" $c2 "TYPE" $c3 "FLAGS" $c4
+
+  # print the content
+  for ((i = 0; i < ${#lines[@]}; i++))
+  do
+    line=(${lines[$i]})
+    printf "%-${c1}s%-${c2}s%-${c3}s%-${c4}s\n" ${line[0]} ${line[2]} ${line[4]} ${line[5]}
+  done
+}
+
+
+#
+# Entry point
+#
+parse_args "$@"
+for info in "${infos[@]}"
+do
+  echo
+  $info  # call the requested function
+done

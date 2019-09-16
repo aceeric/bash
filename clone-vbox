@@ -1,0 +1,46 @@
+#!/bin/bash
+#
+# Clones a Virtualbox VM and starts it
+#
+
+set -e
+
+vboxdir=/sdb1/virtualbox
+
+if [[ ! "$#" == 1 ]]; then
+  echo "Usage: clone-vbox [vmname-to-clone]"
+  echo
+  echo "The following VMs are available to clone:"
+  echo
+  vboxmanage list vms
+  exit 1
+else
+  vm="$1"
+fi
+
+clone=$vm-clone$RANDOM
+clonedir=$vboxdir/$clone
+
+echo "Existing VM being cloned : $vm"
+echo "New VM being created     : $clone"
+echo "Directory of new VM      : $clonedir"
+
+if [[ -d $clonedir ]]; then
+  echo "Directory '$clonedir' already exists. Stopping"
+  exit 1
+fi
+
+echo "Creating directory: $clonedir"
+mkdir $clonedir
+
+echo "Cloning $vm to $clone"
+vboxmanage export $vm --output $clonedir/$clone.ova
+
+echo "Importing $clone"
+vboxmanage import $clonedir/$clone.ova --vsys 0 --vmname $clone --vsys 0 --unit 14 --disk $clonedir/$clone.vdi
+
+echo "Removing export file $clone.ova"
+rm -f $clonedir/$clone.ova
+
+echo "Starting $clone"
+vboxmanage startvm $clone

@@ -5,6 +5,7 @@ Useful Bash shell scripts. I don't do a ton of Bash shell scripting, but this pr
 | --- | --- |
 | apt-hist | Displays a condensed history of apt commands sorted in descending order |
 | args-and-usage | Demonstrates parsing command-line args and displaying usage instructions |
+| clone-vbox | Clones and starts a Virtualbox VM from an existing VM image |
 | dirsize | Prints directories and their sizes in descending order |
 | do-backup | Performs a backup of selected directories to a removable drive |
 | gl | Git Log. Displays git commit history nicely formatted - single line per commit - fitted to the console |

@@ -8,6 +8,7 @@ Useful Bash shell scripts. I don't do a ton of Bash shell scripting, but this pr
 | clone-vbox | Clones and starts a Virtualbox VM from an existing VM image |
 | dirsize | Prints directories and their sizes in descending order |
 | do-backup | Performs a backup of selected directories to a removable drive |
+| elapsed | Calculates and displays the elapsed time between two values. Useful for benchmarking |
 | gl | Git Log. Displays git commit history nicely formatted - single line per commit - fitted to the console |
 | hist | Displays command history filtered on search terms with matches highlighted |
 | sysinfos | Invokes various linux utils to gather system info and just formats the outputs differently. Mostly an exercise in parsing & formatting |

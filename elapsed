@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+function usage() {
+  while IFS= read -r line; do
+    echo "${line:4}"
+  done <<< '
+    Calculates the elased time between two millisecond values
+    
+    Usage: elapsed start stop
+    
+    Positional params:
+
+      start - a 13-position starting time in milliseconds
+      stop  - " ending time
+      
+    Example:
+    
+      start=$(date +%s%N | cut -b1-13); read; stop=$(date +%s%N | cut -b1-13); elapsed $start $stop
+      
+      Marks the time. Waits for a keypress. Gets the time again. Prints the elapsed
+      time spent waiting for input. Example output:
+      
+      Elapsed time (H:MM:SS:NNN) 0:00:41:782
+    '
+  exit 1
+}
+
+if [[ "$#" -ne 2 ]]; then
+  usage
+fi
+
+start="$1"
+stop="$2"
+
+if [[ "${#start}" -ne 13 ]] || [[ "${#stop}" -ne 13 ]]; then
+  echo "ERROR: Both values must be 13-position numbers. Try 'elapsed' with no args for help"
+  exit 1
+fi
+
+# in case the values are passed with leading zeros, make bash interpret them as base ten instead of octal
+elapsed="$(($((10#$stop))-$((10#$start))))"
+
+if [[ $elapsed -lt 0 ]]; then
+  echo "ERROR: The first parameter value must be earlier than second parameter value. Try 'elapsed' with no args for help"
+  exit 1
+fi
+
+# hours
+millis_hr=$((1000 * 60 * 60))
+elapsed_hr=$((elapsed / millis_hr))
+
+# minutes
+elapsed=$((elapsed - (elapsed_hr * millis_hr)))
+millis_min=$((1000 * 60))
+elapsed_min=$((elapsed / millis_min))
+
+# seconds
+elapsed=$((elapsed - (elapsed_min * millis_min)))
+millis_sec=$((1000))
+elapsed_sec=$((elapsed / millis_sec))
+
+# millis
+elapsed_milli=$((elapsed - (elapsed_sec * millis_sec)))
+
+printf "Elapsed time (H:MM:SS:NNN) %d:%02d:%02d:%03d\n" $elapsed_hr $elapsed_min $elapsed_sec $elapsed_milli

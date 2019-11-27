@@ -299,8 +299,8 @@ function parse_args() {
 function main() {
   parse_args "$@"
   confirm_prereqs_or_fail
-  backup_device="/media/$USER/seagate-backup-plus-drive"
-  ensure_backup_media_is_mounted_or_fail "$backup_device"
+  backup_device="/media/eace/seagate-backup-plus-drive"
+  #ensure_backup_media_is_mounted_or_fail "$backup_device"
   backup_root="$backup_device/$(date +%Y-%m-%d)"
   create_backup_directory_or_fail "$backup_root"
   do_backup "$backup_root"

@@ -1,19 +1,47 @@
 #!/bin/bash
 
 ##
-# Displays the next wallpaper, round-robin, from the directory provided
-# in arg one. Doesn't validate file types - assumes the user provides a
-# directory that contains exclusively image files (or directories, which
-# the script ignores.)
+# Displays a wallpaper from the passed directory.
 #
 # usage:
 # 
 # wpslide /home/$USER/Pictures
 #
+# With one arg, queries gsettings for the current wallpaper and then
+# displays the next sequential wallpaper from the passed directory using
+# alpha sort, wrapping around to the first wallpaper.
+#
+# wpslide /home/$USER/Pictures random
+#
+# When the 'random' arg is passed as arg #2, selects a wallpaper at
+# random from the passed directory and displays it.
+#
 # tested configuration:
 #   Ubuntu 18.04.1 LTS
 #   GNU bash, version 4.4.19(1)-release (x86_64-pc-linux-gnu)
+#
+# To set up a background process to continually cycle through the
+# wallpapers in round-robin fashion:
+#
+# $ while true; do wpslide /home/$USER/Pictures; sleep 20m; done &
+#
 ##
+
+if [[ "$#" -eq 2 ]] && [[ "$2" == "random" ]]; then
+  wps=$(ls "$1" | grep 'jpg$\|png$')
+  wps=($wps)
+  wp_cnt=${#wps[@]}
+  idx=$((RANDOM % $wp_cnt))
+  wp="$1"
+  len=${#wp}
+  ((len--))
+  if ! [[ "${wp:$len:1}" == "/" ]]; then
+    wp="$wp/"
+  fi
+  wp="$wp${wps[$idx]}"
+  gsettings set org.gnome.desktop.background picture-uri "file://$wp"
+  exit 0
+fi
 
 ##
 # holds the currently displayed wallpaper. The gsettings command returns the

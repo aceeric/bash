@@ -1,0 +1,5 @@
+#!/bin/bash
+while true; do
+  /home/eace/scripts/wpslide /home/eace/Pictures
+  sleep 5s
+done

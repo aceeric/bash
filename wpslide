@@ -14,8 +14,8 @@
 #
 # Short and long option definitions
 #
-short_opts=hrnfod:
-long_opts=help,recurse,random,from-cur,only-one,delay:
+short_opts=hrnfocd:
+long_opts=help,recurse,random,from-cur,only-one,delay,cur:
 script_name=$(basename "$0")
 
 #
@@ -52,6 +52,15 @@ from_cur=0
 # 1 -- Display one wallpaper and then exit
 #
 only_one=0
+
+#
+# -c|--cur
+# 
+# 0 -- nop
+# 1 -- Query Gnome for the currently displaying wallpaper, echo it to the
+#      console and exit
+#
+show_cur=0
 
 #
 # -d|--delay
@@ -120,7 +129,8 @@ function usage() {
     Sets Gnome wallpapers from image paths specified on the command line. Can display wallpapers in slide-show
     fashion, or, once per script invocation.
     
-    Usage: wpslide [-h,--help] [-r,--recurse] [-n,--random] [-f,--from-cur] [-o,--only-one] [-d,--delay]
+    Usage: wpslide [-h,--help] [-r,--recurse] [-n,--random] [-f,--from-cur] [-o,--only-one]
+           [-d,--delay] [-c,--cur]
            path [path...]
     
     Options:
@@ -137,6 +147,7 @@ function usage() {
                      displaying wallpaper is ignored when determining the first image to display
       -o,--only-one  Displays one image and then exits. The default is to display images indefinitely until the
                      script is terminated. Useful when defining a desktop launcher to change the wallpaper
+      -c,--cur       Query Gnome for the currently displaying wallpaper, echo it to then console, and exit
       -d,--delay     Delay control. Two forms are supported. In the first form, the constant "read" means the script
                      waits for you to press ENTER between images. The second form is a value suitable to provide to
                      the "sleep" command, such as "30s", or "10m", etc. In the latter case, the script sleeps
@@ -242,6 +253,7 @@ function opt_val() {
 #   random_order -- from '-n|--random'
 #   from_cur     -- from '-f|--from-cur'
 #   only_one     -- from '-o|--only_one'
+#   show_cur     -- from '-c|--cur'
 #   delay        -- from '-d|--delay'
 #   wp_paths     -- absolute image paths from positional params
 #
@@ -276,6 +288,10 @@ function parse_args() {
         only_one=1
         shift 1
         ;;
+      -c|--cur)
+        show_cur=1
+        shift 1
+        ;;
       -d|--delay)
         delay=$(opt_val "$2")
         shift 2
@@ -287,6 +303,13 @@ function parse_args() {
     esac
   done
 
+  # handle cmd line opt to show the currently displaying wallpaper and exit
+
+  if [[ $show_cur == 1 ]]; then
+    echo "Current wallpaper is: $(gsettings get org.gnome.desktop.background picture-uri)"
+    exit 0
+  fi
+  
   # parse positional params into a pathspec array. if no path(s) were
   # provided, then use the current working directory
 

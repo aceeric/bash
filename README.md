@@ -9,6 +9,7 @@ Useful Bash shell scripts. I don't do a ton of Bash shell scripting, but this pr
 | dirsize | Prints directories and their sizes in descending order |
 | do-backup | Performs a backup of selected directories to a removable drive |
 | elapsed | Calculates and displays the elapsed time between two values. Useful for benchmarking |
+| fragments (directory) | This directory contains isolated useful scripting techniques |
 | gl | Git Log. Displays git commit history nicely formatted - single line per commit - fitted to the console |
 | hist | Displays command history filtered on search terms with matches highlighted |
 | sysinfos | Invokes various linux utils to gather system info and just formats the outputs differently. Mostly an exercise in parsing & formatting |

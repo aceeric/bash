@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# One useful way to check that a set of required environment variables or script
+# variables have values, using Bash "${!}"
+#
+# Example:
+#
+# $ ONE=TEST1 check-required-vars; echo $?
+# ONE=TEST1
+# TWO=
+# THREE=
+# Missing required environment variable: TWO
+# 1
+
+# $ ONE=TEST1 TWO=X THREE=Z check-required-vars; echo $?
+# ONE=TEST1
+# TWO=X
+# THREE=Z
+# 0
+
+envs=(ONE TWO THREE)
+
+for ((i=0; i<${#envs[@]}; ++i)); do
+  echo "${envs[$i]}=${!envs[$i]}"
+done
+
+for ((i=0; i<${#envs[@]}; ++i)); do
+  if [[ -z "${!envs[$i]}" ]]; then
+    echo "Missing required environment variable: ${envs[$i]}"
+    exit 1
+  fi
+done
+exit 0

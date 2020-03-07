@@ -1,0 +1,60 @@
+#!/bin/bash
+
+#
+# Inspired by https://www.networkworld.com/article/2766925/unix-how-to--using-basename-wisely.html
+#
+# Highlights the performance difference between using 'basename' and shell substitution for
+# getting the filename from a combined path/file specifier. On my system, running this script
+# produces the following output to the console:
+#
+# Performing 10000 iterations
+# 
+# Using shell substitution:
+# path=/foo/bar/baz/frobozz.log
+# filename=frobozz.log
+# Elapsed time (H:MM:SS:NNN) 0:00:00:044
+# 
+# Using the basename command:
+# path=/foo/bar/baz/frobozz.log
+# filename=frobozz.log
+# Elapsed time (H:MM:SS:NNN) 0:00:23:354
+#
+# This helped me in a situation where I had to move data between S3 and the filesystem
+# using a data copy utility which required performing pathname manipulation - the
+# shell substitution approach was a huge improvement when traversing millions of
+# S3 objects.
+#
+# My CPU config:
+# 
+# $ lscpu | grep MHz
+# CPU MHz:             800.073
+# CPU max MHz:         4600.0000
+# CPU min MHz:         800.0000
+#
+
+path=/foo/bar/baz/frobozz.log
+iterations=10000
+
+echo "Performing $iterations iterations"
+echo
+echo "Using shell substitution:"
+start=$(date +%s%N | cut -b1-13)
+for ((i=0;i<$iterations;++i)); do
+  filename=${path##*/}
+done
+stop=$(date +%s%N | cut -b1-13)
+echo "path=$path"
+echo "filename=$filename"
+elapsed $start $stop
+
+echo
+echo "Using the basename command:"
+filename=
+start=$(date +%s%N | cut -b1-13)
+for ((i=0;i<$iterations;++i)); do
+  filename=$(basename $path)
+done
+stop=$(date +%s%N | cut -b1-13)
+echo "path=$path"
+echo "filename=$filename"
+elapsed $start $stop

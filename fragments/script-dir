@@ -1,0 +1,107 @@
+#!/bin/bash
+
+#
+# A common requirement for a shell script is to obtain its directory. It seems there are
+# a handful of ways to do this. One technique that I ran across in GitHub at the link below
+# works consistently for me:
+#
+# https://github.com/CrunchyData/crunchy-containers/blob/master/examples/kube/backrest/full/run.sh
+#
+# The technique is:
+# 
+# SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#
+# Many online articles talk about pros and cons of various approaches. So I put together a test.
+# If your editor supports block mode selection like Kate - you can select the function definition
+# in the comment below starting at column three (one-relative) and paste it into your console.
+# This defines a function. (First, change the initial SCRIPT assignment to match where you
+# have this script, but everything else should flow unchanged from there):
+#
+# testfxn() {
+#   SCRIPT=$HOME/scripts/fragments/script-dir
+#   TESTDIRS=("/tmp/script-dir-$RANDOM" "/tmp/script-dir-$RANDOM with spaces")
+#   for ((i=0;i<2;++i)); do
+#     SCRIPTDIR="${TESTDIRS[$i]}"
+#     echo "Test in [$SCRIPTDIR]"
+#     mkdir -p "$SCRIPTDIR"
+#     cp "$SCRIPT" "$SCRIPTDIR"
+#     pushd "$SCRIPTDIR" &>/dev/null
+#     printf "  exec same directory: ";
+#     [[ $(./script-dir) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     printf "  source same directory: ";
+#     [[ $(source ./script-dir) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     cd $HOME
+#     printf "  exec diff directory: ";
+#     [[ $("$SCRIPTDIR"/script-dir) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     printf "  source diff directory: ";
+#     [[ $(source "$SCRIPTDIR"/script-dir) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     printf "  exec in PATH: ";
+#     [[ $(PATH=$PATH:"$SCRIPTDIR" script-dir) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     printf "  source in PATH: ";
+#     [[ $(PATH=$PATH:"$SCRIPTDIR" source script-dir) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     ln -s "$SCRIPTDIR"/script-dir "$SCRIPTDIR"/script-dir-link
+#     cd "$SCRIPTDIR"
+#     printf "  exec link same directory: ";
+#     [[ $(./script-dir-link) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     printf "  source link same directory: ";
+#     [[ $(source ./script-dir-link) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     cd $HOME
+#     printf "  exec link diff directory: ";
+#     [[ $("$SCRIPTDIR"/script-dir-link) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     printf "  source link diff directory: ";
+#     [[ $(source "$SCRIPTDIR"/script-dir-link) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     printf "  exec link in PATH: ";
+#     [[ $(PATH=$PATH:"$SCRIPTDIR" script-dir-link) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     printf "  source link in PATH: ";
+#     [[ $(PATH=$PATH:"$SCRIPTDIR" source script-dir-link) == "$SCRIPTDIR" ]] && echo "PASS" || echo "FAIL"
+#     popd &>/dev/null
+#     rm -rf "$SCRIPTDIR"
+#   done
+# }
+#
+# The function creats a directory under /tmp and copies the script there. It runs several tests
+# regarding the ability of the function to correctly identify the path it is running in. Then the
+# function copies the script to a directory under /tmp with spaces in the directory name and
+# repeats the tests there.
+#
+# The function produces the following output for me (random numbers can change on each run, of
+# course):
+#
+# Test in [/tmp/script-dir-20062]
+#   exec same directory: PASS
+#   source same directory: PASS
+#   exec diff directory: PASS
+#   source diff directory: PASS
+#   exec in PATH: PASS
+#   source in PATH: PASS
+#   exec link same directory: PASS
+#   source link same directory: PASS
+#   exec link diff directory: PASS
+#   source link diff directory: PASS
+#   exec link in PATH: PASS
+#   source link in PATH: PASS
+# Test in [/tmp/script-dir-2742 with spaces]
+#   exec same directory: PASS
+#   source same directory: PASS
+#   exec diff directory: PASS
+#   source diff directory: PASS
+#   exec in PATH: PASS
+#   source in PATH: PASS
+#   exec link same directory: PASS
+#   source link same directory: PASS
+#   exec link diff directory: PASS
+#   source link diff directory: PASS
+#   exec link in PATH: PASS
+#   source link in PATH: PASS
+#
+# This would seem to prove that this technique works whether a function is: exec'ed, sourced,
+# run in the same directory, run from a different directory, in the PATH, not in the PATH, run
+# via a link, not via a link, in directories with spaces, and in directories without spaces.
+#
+# Tested under this configuration:
+# $ bash --version
+# GNU bash, version 4.4.20(1)-release (x86_64-pc-linux-gnu)
+#
+
+SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "$SCRIPTDIR"

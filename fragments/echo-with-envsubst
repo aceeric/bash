@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+#
+# Demonstrates using the 'envsubst' command to generate formatted output. The 
+# use case is: a script needs to generate a configuration file from a template
+# while substituting values known at runtime. This example emanates JSON but the
+# pattern works for anything. The goal is to support script readability without
+# affecting the format of the output. This example generates a config.json for
+# the MinIO client (https://docs.min.io/docs/minio-client-complete-guide.html)
+#
+
+function gen_cfg() {
+  str=$(\
+    URL="$1" \
+    ACCESSKEY="$2" \
+    SECRETKEY="$3" \
+    envsubst <<<$'
+      {
+          "version": "8",
+          "hosts": {
+              "TEST-ALIAS": {
+                  "url"      : "$URL",
+                  "accessKey": "$ACCESSKEY",
+                  "secretKey": "$SECRETKEY",
+                  "api"      : "S3v4"
+              }
+          }
+      }' | cut -b7-
+  )
+  echo "${str:1}"
+}
+
+str=$(gen_cfg "http://127.0.0.1:1234" "ZZZZ1ZZZZ1ZZZ1ZZ1ZZZ" "ZZZZZzz1ZZZz1zzZZZZ11zzZZZZzZZ1ZZzzZZ11Z")
+echo "$str"

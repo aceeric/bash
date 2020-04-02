@@ -14,8 +14,8 @@
 #
 # Short and long option definitions
 #
-short_opts=hrnfocd:
-long_opts=help,recurse,random,from-cur,only-one,delay,cur:
+short_opts=hrfocd:s:
+long_opts=help,recurse,from-cur,only-one,delay,cur:,sort:
 script_name=$(basename "$0")
 
 #
@@ -27,12 +27,13 @@ script_name=$(basename "$0")
 recurse=0
 
 #
-# -n|--random
+# -s|--sort
 # 
-# 0 -- Display images in sequential order
-# 1 -- random order
+# 0 -- Display images in sequential name-sorted order (incl. directory name)
+# 1 -- Random order
+# 2 -- Date order - most recent first
 #
-random_order=0
+sort=
 
 #
 # -f|--from-cur
@@ -140,6 +141,10 @@ function usage() {
                      subdirectories are not recursed
       -n,--random    Displays images in a random order. By default, images are displayed in name-sorted order -
                      including directory name. E.g.: bar/baz.jpg sorts before baz/bar.jpg
+      -s,--sort      Defines a sort. By default, images are displayed in sequential name-sorted order including
+                     directory name. E.g.: bar/baz.jpg sorts before baz/bar.jpg. Allowed values are n|random and
+                     r|recent. The recent param means sequentially with most recent first. (Like ls -lt). E.g.:
+                     -sn, -srandom --sort=recent...
       -f,--from-cur  Queries Gnome for the current wallpaper, and in sequential mode starts with the next sequential
                      image. In random mode, randomly selects a different starting image. This arg is useful for running
                      the script as a desktop launcher to support changing the wallpaper by double-clicking the launcher
@@ -155,11 +160,11 @@ function usage() {
 
     Positional params:
 
-      The directory - or directories - from which to display images and/or individual image path(s). If no path is
-      provided, then the current working directory is used. If the provided path spec resolves to a single image,
-      then the script just sets the wallpaper to that image and exits - just as if you had manually set the wallpaper
-      with the Gnome "gsettings set org.gnome.desktop.background" command. In this instance, command line args are
-      still parsed, but they are ignored.
+      Positional params specify the directory - or directories - from which to display images and/or individual
+      image path(s). If no path is provided, then the current working directory is used. If the provided path spec
+      resolves to a single image, then the script just sets the wallpaper to that image and exits - just as if you
+      had manually set the wallpaper with the Gnome "gsettings set org.gnome.desktop.background" command. In this
+      instance, command line args are still parsed, but they are ignored.
 
     Examples:
     
@@ -180,7 +185,7 @@ function usage() {
 
       Same as the prior example, except also displays images from the $HOME/other-pictures directory and its
       subdirectories, as well as foo.png in the current working directory. (Note: if you specify /foo /foo/bar
-      and /foo/bar/baz as well as recursion, the script will only display the uniques)
+      and /foo/bar/baz as well as recursion, the script will only display the uniques.)
       
       wpslide /home/$USER/foo.png
       
@@ -233,6 +238,30 @@ function opt_val() {
 }
 
 #
+# Searches the passed array for the passed element. Note - this function
+# not intended to be called in a subshell, hence return vs exit
+#
+# Params:
+#
+#   $1     - the element to search for
+#   $2..$n - everything after $1 is treated as an array to search
+#
+# Returns:
+#
+#   Exit code true (0) if the $2..$n array contains element $1, else exit
+#   code false (!0)
+#
+function contains_element() {
+  local tofind="$1"
+  shift
+  local tosearch=("$@")
+  for s in "${tosearch[@]}"; do
+    [[ "$s" == "$tofind" ]] && return
+  done
+  false
+}
+
+#
 # Parses the command line and sets script variables
 #
 # Params:
@@ -250,7 +279,7 @@ function opt_val() {
 # Sets script variable(s):
 #
 #   recurse      -- from '-r|--recurse'
-#   random_order -- from '-n|--random'
+#   sort         -- from '-s|--sort'
 #   from_cur     -- from '-f|--from-cur'
 #   only_one     -- from '-o|--only_one'
 #   show_cur     -- from '-c|--cur'
@@ -276,9 +305,9 @@ function parse_args() {
         recurse=1
         shift 1
         ;;
-      -n|--random)
-        random_order=1
-        shift 1
+	  -s|--sort)
+        sort=$(opt_val "$2")
+        shift 2
         ;;
       -f|--from-cur)
         from_cur=1
@@ -303,10 +332,23 @@ function parse_args() {
     esac
   done
 
+  # image ordering
+  
+  if [[ -z "$sort" ]]; then
+    sort=0
+  elif contains_element "$sort" n random; then
+    sort=1
+  elif contains_element "$sort" r recent; then
+    sort=2
+  else
+    echo "$script_name: unknown param value '$sort'  for 'sort' option..."
+    exit 1
+  fi
+  
   # handle cmd line opt to show the currently displaying wallpaper and exit
 
   if [[ $show_cur == 1 ]]; then
-    echo "Current wallpaper is: $(gsettings get org.gnome.desktop.background picture-uri)"
+    echo "$script_name: Current wallpaper is: $(gsettings get org.gnome.desktop.background picture-uri)"
     exit 0
   fi
   
@@ -338,7 +380,8 @@ function parse_args() {
 }
 
 #
-# Uses script variables 'recurse' and 'wp_paths' build an array of images.
+# Uses script variables 'recurse' and 'wp_paths' and 'sort' to build an
+# array of images.
 #
 # Params:
 #
@@ -369,7 +412,13 @@ function find_images() {
   # nest, sort unique to avoid dups. If 'wp_paths' contains a single filename
   # then this basically just copies the filename into the 'wps' array
 
-  mapfile -t < <(find "${wp_paths[@]}" $maxdepth -name '*.jpg' -o -name "*.png" | sort -u) wps
+  if [[ $sort -eq 2 ]]; then
+    # date order descending
+    mapfile -t < <(find "${wp_paths[@]}" $maxdepth \( -name '*.jpg' -o -name '*.png' \) -printf "%T@ %p\n" | sort -u | sort -r | cut -d' ' -f2) wps
+  else
+    # name order ascending or random (randomization handled elsewhere in the script)
+    mapfile -t < <(find "${wp_paths[@]}" $maxdepth \( -name '*.jpg' -o -name '*.png' \) | sort -u) wps
+  fi
 }
 
 #
@@ -471,7 +520,7 @@ function next_image_sequential() {
 
 #
 # Calls 'next_image_random' or 'next_image_sequential' per the value of 
-# the script variable 'random_order'. See those functions for details.
+# the script variable 'sort'. See those functions for details.
 #
 # Params:
 #
@@ -489,7 +538,7 @@ function next_image_sequential() {
 #   see next_image_random and next_image_sequential
 #
 function next_image() {
-  if [[ $random_order -eq 1 ]]; then
+  if [[ $sort -eq 1 ]]; then
     next_image_random
     return
   elif [[ ! -z $1 ]] && [[ -z $idx ]]; then
@@ -520,14 +569,13 @@ function display_image() {
 }
 
 #
-# Displays the images in the script image array 'wps'. Images are displayed in random or
-# sequential order as defined by the 'random_order' script variable with delay between
-# images as specified in the 'delay' script variable. The function does not repeat an image
-# during a pass through the images array. Once all the images in the array have been displayed,
-# state is reset so the function will run forever. If the array of images is empty when the
-# function is called - it emanates an error message and exits. If the array contains only
-# one image, or the --only-one arg was specified, then the function exits after
-# displaying one image.
+# Displays the images in the script image array 'wps'. Images are displayed in random or sequential
+# order as defined by the 'sort' script variable with delay between images as specified in the
+# 'delay' script variable. The function does not repeat an image during a pass through the
+# images array. Once all the images in the array have been displayed, state is reset so the function
+# will run forever. If the array of images is empty when the function is called - it emanates an
+# error message and exits. If the array contains only one image, or the --only-one arg was specified,
+# then the function exits after displaying one image.
 #
 # Params:
 #
@@ -552,8 +600,7 @@ function display_images() {
     exit 1
   fi
 
-  # initialize the first image to display, if the -f,--from-cur arg
-  # was not provided
+  # initialize the first image to display. Sets next_wp script var
 
   next_image -1
 
@@ -616,9 +663,9 @@ function handle_from_current_option() {
   # This isn't an error - it just means that the current wallpaper doesn't influence the
   # behavior of the script. In other words it's as if the -f,--from-cur arg was not specified
 
-  for ((i=0;i<${#wps[@]};++i)); do
+  for ((i = 0; i <  ${#wps[@]}; ++i)); do
     if [[ "${wps[$i]}" == "$current_wallpaper" ]]; then
-      if [[ $random_order -eq 1 ]]; then
+      if [[ $sort -eq 1 ]]; then
         randoms="$randoms -e $i"
       else
         idx=$i

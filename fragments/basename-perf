@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #
 # Inspired by https://www.networkworld.com/article/2766925/unix-how-to--using-basename-wisely.html

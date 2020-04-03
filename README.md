@@ -1,5 +1,5 @@
 # bash
-Useful Bash shell scripts. I don't do a ton of Bash shell scripting, but this project has a few scripts that I have written that I find generally useful. I run these on Ubuntu 18.04.
+Useful Bash shell scripts. I run these on Ubuntu 18.04, Bash 4.4
 
 | Shell script | Description |
 | --- | --- |
@@ -11,7 +11,8 @@ Useful Bash shell scripts. I don't do a ton of Bash shell scripting, but this pr
 | elapsed | Calculates and displays the elapsed time between two values. Useful for benchmarking |
 | fragments (directory) | This directory contains isolated useful scripting techniques |
 | gl | Git Log. Displays git commit history nicely formatted - single line per commit - fitted to the console |
-| hist | Displays command history filtered on search terms with matches highlighted |
-| sysinfos | Invokes various linux utils to gather system info and just formats the outputs differently. Mostly an exercise in parsing & formatting |
+| hist | Displays command history filtered on search terms with matches highlighted. E.g. `hist foo` rather than `history | grep foo` |
+| sysinfos | Invokes various Linux utils to gather system info and just formats the outputs differently. Mostly an exercise in parsing & formatting |
 | tre | Displays a directory tree using bash. Just as an interesting shell programming exercise |
-| wpslide | Wallpaper slide-show |
+| wpslide | Gnome wallpaper slide-show |
+

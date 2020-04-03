@@ -8,6 +8,20 @@
 # affecting the format of the output. This example generates a config.json for
 # the MinIO client (https://docs.min.io/docs/minio-client-complete-guide.html)
 #
+# Produces output:
+#
+# {
+#     "version": "8",
+#     "hosts": {
+#         "TEST-ALIAS": {
+#             "url"      : "http://127.0.0.1:1234",
+#             "accessKey": "ZZZZ1ZZZZ1ZZZ1ZZ1ZZZ",
+#             "secretKey": "ZZZZZzz1ZZZz1zzZZZZ11zzZZZZzZZ1ZZzzZZ11Z",
+#             "api"      : "S3v4"
+#         }
+#     }
+# }
+#
 
 function gen_cfg() {
   str=$(\

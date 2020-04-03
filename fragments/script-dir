@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #
 # A common requirement for a shell script is to obtain its directory. It seems there are

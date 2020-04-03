@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # One useful way to check that a set of required environment variables or script
 # variables have values, using Bash "${!}"

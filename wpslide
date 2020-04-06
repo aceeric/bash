@@ -124,14 +124,13 @@ function usage() {
   while IFS= read -r line; do
     echo "${line:4}"
   done <<< '
-    
     wpslide - wallpaper slideshow
     
     Sets Gnome wallpapers from image paths specified on the command line. Can display wallpapers in slide-show
     fashion, or, once per script invocation.
     
-    Usage: wpslide [-h,--help] [-r,--recurse] [-n,--random] [-f,--from-cur] [-o,--only-one]
-           [-d,--delay] [-c,--cur]
+    Usage: wpslide [-h,--help] [-r,--recurse] [-s,--sort] [-f,--from-cur] [-o,--only-one]
+           [-c,--cur] [-d,--delay]
            path [path...]
     
     Options:
@@ -139,11 +138,9 @@ function usage() {
       -h,--help      Prints this help and exits
       -r,--recurse   Recurses into subdirectories of the directories specified on the command line. By default,
                      subdirectories are not recursed
-      -n,--random    Displays images in a random order. By default, images are displayed in name-sorted order -
-                     including directory name. E.g.: bar/baz.jpg sorts before baz/bar.jpg
       -s,--sort      Defines a sort. By default, images are displayed in sequential name-sorted order including
                      directory name. E.g.: bar/baz.jpg sorts before baz/bar.jpg. Allowed values are n|random and
-                     r|recent. The recent param means sequentially with most recent first. (Like ls -lt). E.g.:
+                     r|recent. The recent param means sequentially with most recent first. (Like ls -ltr). E.g.:
                      -sn, -srandom --sort=recent...
       -f,--from-cur  Queries Gnome for the current wallpaper, and in sequential mode starts with the next sequential
                      image. In random mode, randomly selects a different starting image. This arg is useful for running
@@ -238,7 +235,7 @@ function opt_val() {
 }
 
 #
-# Searches the passed array for the passed element. Note - this function
+# Searches the passed array for the passed element. Note - this function is
 # not intended to be called in a subshell, hence return vs exit
 #
 # Params:
@@ -414,7 +411,8 @@ function find_images() {
 
   if [[ $sort -eq 2 ]]; then
     # date order descending
-    mapfile -t < <(find "${wp_paths[@]}" $maxdepth \( -name '*.jpg' -o -name '*.png' \) -printf "%T@ %p\n" | sort -u | sort -r | cut -d' ' -f2) wps
+    mapfile -t < <(find "${wp_paths[@]}" $maxdepth \( -name '*.jpg' -o -name '*.png' \) -printf "%T@ %p\n" | \
+      sort -u | sort -r | cut -d' ' -f2) wps
   else
     # name order ascending or random (randomization handled elsewhere in the script)
     mapfile -t < <(find "${wp_paths[@]}" $maxdepth \( -name '*.jpg' -o -name '*.png' \) | sort -u) wps

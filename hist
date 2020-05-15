@@ -4,20 +4,35 @@
 #
 # Usage:
 #
-#   hist (no args)    Identical to history
+#   hist (no args)    Identical to history built-in
 #   hist sometext     Searches command history for all occurrences of 'sometext',
 #                     and displays matching history entries with highlighting.
 # Examples:
 #
 #   hist foo          Matches "foo"
-#   hist "foo bar"    Matches "foo bar"
+#   hist foo bar      Matches "foo bar"
+#   hist 'foo  bar'   Matches "foo  bar"
 #   hist -e           Matches "-e"
-#  
+#
+# Note:
+# 
+#   This utility relies on having access to command history, and there are
+#   specific shell behaviors regarding history and new shells that might
+#   affect how the script runs. Since scripts by default run in new sub-shells,
+#   these behaviors might mean that full history might not be available to this
+#   script. Therefore, I define an alias for this command like so in my .bashrc:
+#   
+#   alias hist='source ~/scripts/hist'
+#
+#   Sourcing the script runs it in the current shell and therefore ensures
+#   that it has access to complete history, regardless of how history is
+#   configured in the environment.
+#
 
 if (( "$#" == 0 ));then
   history
 else
-  srch="$1"
+  srch="$@"
 
   # trim leading and trailing spaces from the search token
   srch=$(printf "%s\n" "$srch" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')

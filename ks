@@ -31,7 +31,7 @@ function usage() {
       ks gz7                            -- kubectl describe secret default-token-gz7mc
       ks gz7 ca.crt                     -- Decodes and displays the contents of ca.crt
       ks gz7 0                          -- "
-      ks gz7 0 -w                       -- Creates ca.crt the working directory
+      ks gz7 0 -w                       -- Creates ca.crt in the working directory
       ks cl-a-c-do                      -- kubectl describe secret clusterrole-aggregation-controller-dockercfg-sb9h7
       ks cluca- ca.p12 > truststore.p12 -- Extracts the P12 truststore from strimzi-cluster-ca-cert to file
                                            truststore.p12 in the current working directory

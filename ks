@@ -229,7 +229,7 @@ function main() {
       printf "%s\n%s\n" "$key" "$underline"
     fi
     # escape any periods in the key name
-    escaped="${key/\./\\\.}"
+    escaped="${key//\./\\\.}"
     if [[ $write -eq 1 ]]; then
       kubectl get secret "$parsed_secret" $namespace -o "jsonpath={.data['$escaped']}" | base64 --decode > "$key"
       echo "wrote $key"

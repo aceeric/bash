@@ -138,7 +138,9 @@ function opt_val() {
 #
 
 function parse_args() {
-  local parsed=$(getopt --options $short_opts --longoptions $long_opts -n $script_name -- "$@")
+  # must separate the local declaration from the assignment or the exit code is lost
+  local parsed
+  parsed=$(getopt --options $short_opts --longoptions $long_opts -n $script_name -- "$@")
   
   if [[ "$?" -ne 0 ]]; then
     exit 1

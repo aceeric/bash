@@ -130,7 +130,7 @@ function main() {
   echo -e "$(tput bold)$(tput setaf 3)hash     author          author dt.  commit dt.  comment$(tput sgr0)"
 
   # show the commit history
-  git log --color --pretty=format:"%C($hashcol)%<(8,trunc)%h%Creset %C($authcol)%<(15,trunc)%aN%Creset %C($datecol)%ad  %cd%Creset  %C($cmntcol)%<($msgwidth,trunc)%s" --date=short $refspec | head -n $count
+  git log --color --pretty=format:"%C($hashcol)%<(8,trunc)%h%Creset %C($authcol)%<(15,trunc)%aN%Creset %C($datecol)%ad  %cd%Creset  %C($cmntcol)%<($msgwidth,trunc)%s%Creset" --date=short $refspec | head -n $count
 
   if [[ $commits -lt $count ]]; then
     # in this case, head inexplicably does not emanate a final newline...

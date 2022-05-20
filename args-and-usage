@@ -45,9 +45,7 @@ positional=
 #   Nothing
 #
 function usage() {
-  while IFS= read -r line; do
-    echo "$line"
-  done <<< '
+  awk '{if (NR!=1) print substr($0,5)}' <<< '
     A template script for parsing command-line options, and displaying usage
     instructions. Intended to be cloned as the starting point for new
     scripts that require arg parsing.

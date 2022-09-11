@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#
+# Lists all namespaced resources. If no params, uses the namespace from the
+# current kube context if possible. Accepts a namespace as positional param one.
+#
+
+ns=$(kubectl config view --minify --output 'jsonpath={..namespace}')
+
+if [[ "$#" -ne 0 ]]; then
+  ns="$1"
+fi
+
+if [[ -z "$ns" ]]; then
+  echo "Current kube context has no namespace. Must specify on command line like: klistall foo-namespace"
+  exit 1
+fi
+
+resources=""
+
+while IFS= read -r resource; do
+  resources="$resources,$resource"
+done < <(kubectl api-resources --namespaced --no-headers -oname)
+
+#while IFS= read -r resource; do
+#  resource=$(echo $resource | cut -d. -f1)
+#  resources="$resources,$resource"
+#done < <(kubectl get crd -o custom-columns=NAME:spec.names.kind,SCOPE:spec.scope --no-headers | grep Namespaced | awk '{print $1}')
+
+# strip off leading comma
+resources=${resources:1}
+kubectl -n $ns get $resources -o custom-columns=KIND:kind,NAME:metadata.name,CREATED:metadata.creationTimestamp 2>/dev/null
+

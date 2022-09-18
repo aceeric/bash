@@ -1,23 +1,40 @@
 #!/usr/bin/env bash
 #
 # Lists all namespaced resources. If no params, uses the namespace from the
-# current kube context if possible. Accepts a namespace as positional param one.
+# current kube context if possible. Accepts a namespace like "-n mynamespace". Accepts
+# an arg --all which shows all resources. Otherwise excludes events.
 #
 
 ns=$(kubectl config view --minify --output 'jsonpath={..namespace}')
+all=0
 
-if [[ "$#" -ne 0 ]]; then
-  ns="$1"
-fi
+while [[ "$#" -ne 0 ]]; do
+  if [[ "$1" == "-n" ]]; then
+    shift
+    ns="$1"
+    shift
+  elif [[ "$1" == "--all" ]]; then
+    all=1
+    shift
+  else
+    echo "invalid args"
+    exit 1
+  fi
+done
 
 if [[ -z "$ns" ]]; then
-  echo "Current kube context has no namespace. Must specify on command line like: klistall foo-namespace"
+  echo "Current kube context has no namespace. Must specify on command line like: klistall -n foo-namespace"
   exit 1
 fi
 
 resources=""
 
 while IFS= read -r resource; do
+  if [[ $resource == "events" ]] || [[ $resource == "events.events.k8s.io" ]]; then
+    if [[ all -eq 0 ]]; then
+      continue
+    fi
+  fi
   resources="$resources,$resource"
 done < <(kubectl api-resources --namespaced --no-headers -oname)
 

@@ -77,12 +77,17 @@ function main() {
 
   # validate local branch or filename exists
   exists=$(git branch | grep " ""$refspec""$")
-  if [[ -z $exists ]]; then
+  if [[ -z "$exists" ]]; then
     # try remote branch
     exists=$(git branch -r | grep " ""$refspec""$")
   fi
+  if [[ -z "$exists" ]]; then
+    # try tag
+    exists=$(git tag | grep "$refspec$")
+    echo "EXISTS=$exists"
+  fi
 
-  if [[ -z $exists ]]; then
+  if [[ -z "$exists" ]]; then
     if [[ -f $refspec ]]
     then
       refspec_type="file"

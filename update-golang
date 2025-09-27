@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# Usage: update-golang <version>
+#
+# Example: update-golang 1.21.4
+#
+# Latest releases can be viewed here: https://go.dev/dl/
+#
+
+set -e
+
+if [[ "$#" -eq 0 ]]; then
+  echo "need a version in arg 1"
+  exit 1
+fi
+
+newgover="$1"
+
+echo "ready to upgrade go to version: $newgover"
+
+curgo=$(which go)
+if [[ "$curgo" != "/usr/local/go/bin/go" ]]; then
+  echo "this script requires go to be installed at: /usr/local/go/bin/go"
+  exit 1
+fi
+
+curgover=$(go version | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}')
+echo "current version is: $curgover"
+
+if [[ "$curgover" == "$newgover" ]]; then
+  echo "version $newgover already installed, nothing to do"
+  exit 0
+fi
+
+echo "download $newgover"
+gourl="https://go.dev/dl/go$newgover.linux-386.tar.gz"
+if ! curl -sL $gourl -o /dev/null --head --fail; then
+  echo "error: not found: $gourl"
+  exit 1
+fi
+
+curl -L $gourl -o "/tmp/go$newgover.linux-386.tar.gz"
+
+echo "moving /usr/local/go /usr/local/go-$curgover"
+sudo mv /usr/local/go "/usr/local/go-$curgover"
+
+echo "unpack the download"
+
+sudo tar -C /usr/local -xzf "/tmp/go$newgover.linux-386.tar.gz"
+
+go version

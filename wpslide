@@ -4,9 +4,8 @@
 # verify that Gnome is the installed desktop...) This has been tested on
 # the following configuration:
 #
-# - Ubuntu 18.04.3 LTS
-# - GNU bash, version 4.4.20(1)-release
-# - GNOME Shell 3.28.4
+# - Ubuntu 18.04 to 20.04
+# - GNU bash, version 4.4.20(1)-release to 5.2.21(1)-release
 #
 # For more info - see the help below
 #
@@ -14,8 +13,8 @@
 #
 # Short and long option definitions
 #
-short_opts=hrfocd:s:
-long_opts=help,recurse,from-cur,only-one,delay,cur:,sort:
+short_opts=hrps:focd:
+long_opts=help,recurse,print,sort:,from-cur,only-one,cur,delay:
 script_name=$(basename "$0")
 
 #
@@ -69,6 +68,14 @@ show_cur=0
 # Either the constant 'read', or a value that the 'sleep' command will understand
 #
 delay="10m"
+
+#
+# -p|--print
+# 
+# 0 -- Do not print the name of the file to the console that is being displayed
+# 1 -- Do print
+#
+print=0
 
 #
 # Image path(s) parsed from positional params and made absolute - defaulted
@@ -129,31 +136,35 @@ function usage() {
     Sets Gnome wallpapers from image paths specified on the command line. Can display wallpapers in slide-show
     fashion, or, once per script invocation.
     
-    Usage: wpslide [-h,--help] [-r,--recurse] [-s,--sort] [-f,--from-cur] [-o,--only-one]
+    Usage: wpslide [-h,--help] [-r,--recurse] [-p,--print] [-s,--sort] [-f,--from-cur] [-o,--only-one]
            [-c,--cur] [-d,--delay]
            path [path...]
     
     Options:
     
-      -h,--help      Prints this help and exits
-      -r,--recurse   Recurses into subdirectories of the directories specified on the command line. By default,
-                     subdirectories are not recursed
-      -s,--sort      Defines a sort. By default, images are displayed in sequential name-sorted order including
-                     directory name. E.g.: bar/baz.jpg sorts before baz/bar.jpg. Allowed values are n|random and
-                     r|recent. The recent param means sequentially with most recent first. (Like ls -ltr). E.g.:
-                     -sn, -srandom --sort=recent...
-      -f,--from-cur  Queries Gnome for the current wallpaper, and in sequential mode starts with the next sequential
-                     image. In random mode, randomly selects a different starting image. This arg is useful for running
-                     the script as a desktop launcher to support changing the wallpaper by double-clicking the launcher
-                     (An example launcher is provided after the usage examples below). If omitted, then the currently
-                     displaying wallpaper is ignored when determining the first image to display
-      -o,--only-one  Displays one image and then exits. The default is to display images indefinitely until the
-                     script is terminated. Useful when defining a desktop launcher to change the wallpaper
-      -c,--cur       Query Gnome for the currently displaying wallpaper, echo it to then console, and exit
-      -d,--delay     Delay control. Two forms are supported. In the first form, the constant "read" means the script
-                     waits for you to press ENTER between images. The second form is a value suitable to provide to
-                     the "sleep" command, such as "30s", or "10m", etc. In the latter case, the script sleeps
-                     the specified interval between images. If omitted, a default delay of ten minutes is used
+      -h,--help        Prints this help and exits
+      -r,--recurse     Recurses into subdirectories of the directories specified on the command line. By default,
+                       subdirectories are not recursed
+      -p,--print       Prints the name of the file to the console that is being displayed as each image is
+                       displayed. False by default.
+      -s,--sort <val>  Defines a sort. By default, images are displayed in sequential name-sorted order including
+                       directory name. E.g.: bar/baz.jpg sorts before baz/bar.jpg. Allowed values are n|random and
+                       r|recent. The recent param means sequentially with most recent first. (Like ls -ltr). E.g.:
+                       -sn, -srandom --sort=recent...
+      -f,--from-cur    Queries Gnome for the current wallpaper, and in sequential mode starts with the next
+                       sequential image. In random mode, randomly selects a different starting image. This arg is
+                       useful for running the script as a desktop launcher to support changing the wallpaper by
+                       double-clicking the launcher. (An example launcher is provided after the usage examples below.)
+                       If omitted, then the currently displaying wallpaper is ignored when determining the first
+                       image to display
+      -o,--only-one    Displays one image and then exits. The default is to display images indefinitely until the
+                       script is terminated. Useful when defining a desktop launcher to change the wallpaper
+      -c,--cur         Query Gnome for the currently displaying wallpaper, echo it to then console, and exit
+      -d,--delay <val> Delay control. Two forms are supported. In the first form, the constant "read" means the
+                       script waits for you to press ENTER between images. The second form is a value suitable to
+                       provide to the "sleep" command, such as "30s", or "10m", etc. In the latter case, the
+                       script sleeps the specified interval between images. If omitted, a default delay of ten
+                       minutes is used
 
     Positional params:
 
@@ -275,13 +286,14 @@ function contains_element() {
 #
 # Sets script variable(s):
 #
-#   recurse      -- from '-r|--recurse'
-#   sort         -- from '-s|--sort'
-#   from_cur     -- from '-f|--from-cur'
-#   only_one     -- from '-o|--only_one'
-#   show_cur     -- from '-c|--cur'
-#   delay        -- from '-d|--delay'
-#   wp_paths     -- absolute image paths from positional params
+#   recurse  -- from '-r|--recurse'
+#   print    -- from '-p|--print'
+#   sort     -- from '-s|--sort'
+#   from_cur -- from '-f|--from-cur'
+#   only_one -- from '-o|--only_one'
+#   show_cur -- from '-c|--cur'
+#   delay    -- from '-d|--delay'
+#   wp_paths -- absolute image paths from positional params
 #
 function parse_args() {
   local parsed=$(getopt --options $short_opts --longoptions $long_opts -n $script_name -- "$@")
@@ -302,7 +314,11 @@ function parse_args() {
         recurse=1
         shift 1
         ;;
-	  -s|--sort)
+      -p|--print)
+        print=1
+        shift 1
+        ;;
+	    -s|--sort)
         sort=$(opt_val "$2")
         shift 2
         ;;
@@ -564,6 +580,9 @@ function display_image() {
   #DEBUG
   #echo "file://$1"
   gsettings set org.gnome.desktop.background picture-uri "file://$1"
+  if [[ $print -eq 1 ]]; then
+    echo $1
+  fi
 }
 
 #

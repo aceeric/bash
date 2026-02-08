@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+#
+# Cleans up (deletes) old GitHub workflow runs. Adapted from:
+#   https://medium.com/@vaghasiya.mahipal/how-to-bulk-delete-github-actions-workflow-runs-complete-guide-c85b57b2b3c7
+#
+
+set -e
+
+if [[ -z "$GITHUB_TOKEN" ]]; then
+  echo "need GITHUB_TOKEN environment variable defined"
+  exit 1
+fi
+
+OWNER="aceeric"
+PER_PAGE=100
+REPO=
+WORKFLOW_ID=
+KEEP=10
+
+function parse_cmdline() {
+  if [[ "$#" -eq 0 ]]; then
+    echo "no args specified, try: ./dtk help (the command line was re-designed in version v1.34.1-1)"
+    exit 1
+  fi
+
+  parse_error=
+  for ((i=1; i<=$#; i++)); do
+    arg="${!i}"
+    case $arg in
+      list-workflows)
+        operation="$arg"
+        ;;
+      clean)
+        operation="$arg"
+        ;;
+      --repo=*)
+        REPO=$(echo $arg | cut -d= -f2)
+        ;;
+      --repo)
+        ((i++))
+        if [[ -z "${!i}" ]]; then
+          parse_error=1
+          break
+        fi
+        REPO="${!i}"
+        ;;
+      --keep=*)
+        KEEP=$(echo $arg | cut -d= -f2)
+        ;;
+      --keep)
+        ((i++))
+        if [[ -z "${!i}" ]]; then
+          parse_error=1
+          break
+        fi
+        KEEP="${!i}"
+        ;;
+      --workflow-id=*)
+        WORKFLOW_ID=$(echo $arg | cut -d= -f2)
+        ;;
+      --workflow-id)
+        ((i++))
+        if [[ -z "${!i}" ]]; then
+          parse_error=1
+          break
+        fi
+        WORKFLOW_ID="${!i}"
+        ;;
+      help|--help)
+        operation="help"
+        ;;
+      *)  
+        parse_error=1
+        ;;
+    esac
+  done
+
+  if [[ $parse_error -eq 1 ]]; then
+    echo "unable to parse command line, try: ./$0 help"
+    exit 1
+  fi
+
+  if [[ -z "$REPO" ]]; then
+    echo "no repo specified, try: ./$0 help"
+    exit 1
+  fi
+}
+
+function clean() {
+  PAGE=1
+  ALL_RUNS=""
+  while :; do
+    RUNS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                "https://api.github.com/repos/$OWNER/$REPO/actions/workflows/$WORKFLOW_ID/runs?per_page=$PER_PAGE&page=$PAGE" |\
+                jq -r '.workflow_runs[] | "\(.id) \(.run_started_at)"')
+
+    if [[ -z "$RUNS" ]]; then
+      break
+    fi
+    ALL_RUNS="$ALL_RUNS$RUNS"
+    ((PAGE++))
+  done
+
+  echo "$ALL_RUNS" | tail -n +$KEEP | while read RUN; do
+    RUN_ID=$(echo "$RUN" | cut -d ' ' -f 1)
+    echo "deleting run id $RUN_ID"
+    curl -s -X DELETE \
+         -H "Authorization: token $GITHUB_TOKEN" \
+         "https://api.github.com/repos/$OWNER/$REPO/actions/runs/$RUN_ID"
+    sleep 1
+  done
+}
+
+function list_workflows() {
+  curl -s -H "Authorization: token $GITHUB_TOKEN" \
+    https://api.github.com/repos/aceeric/$REPO/actions/workflows |\
+    jq -r '.workflows[] | "\(.id) \(.name) \(.path)"' |\
+    column -t -C name='ID' -C name='NAME' -C name='PATH'
+}
+
+function show_usage() {
+  while IFS= read -r line; do
+    echo "${line:4}"
+  done <<< '
+    rm-gh-workflows
+    ---------------
+    Usage:
+  
+      rm-gh-workflows command [flags]
+
+    Supported commands:
+
+      command         Description            Required flags
+      -------------   ---------------        --------------------
+      list-workflows  Lists workflows        --repo
+      clean           Deletes workflow runs  --repo --workflow-id
+
+    Flags:
+  
+      --repo         Your repository
+      --workflow-id  A workflow ID to clean'
+}
+
+parse_cmdline "$@"
+
+case $operation in
+  list-workflows)
+    list_workflows
+    ;;
+  clean)
+    clean
+    ;;
+  help)
+    show_usage
+    ;;
+esac

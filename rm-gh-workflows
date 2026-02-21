@@ -11,7 +11,7 @@ if [[ -z "$GITHUB_TOKEN" ]]; then
   exit 1
 fi
 
-OWNER="aceeric"
+OWNER=
 PER_PAGE=100
 REPO=
 WORKFLOW_ID=
@@ -19,7 +19,7 @@ KEEP=10
 
 function parse_cmdline() {
   if [[ "$#" -eq 0 ]]; then
-    echo "no args specified, try: ./dtk help (the command line was re-designed in version v1.34.1-1)"
+    echo "no args specified, try: ./rm-gh-workflows help (the command line was re-designed in version v1.34.1-1)"
     exit 1
   fi
 
@@ -32,6 +32,17 @@ function parse_cmdline() {
         ;;
       clean)
         operation="$arg"
+        ;;
+      --owner=*)
+        OWNER=$(echo $arg | cut -d= -f2)
+        ;;
+      --owner)
+        ((i++))
+        if [[ -z "${!i}" ]]; then
+          parse_error=1
+          break
+        fi
+        OWNER="${!i}"
         ;;
       --repo=*)
         REPO=$(echo $arg | cut -d= -f2)
@@ -84,6 +95,11 @@ function parse_cmdline() {
     echo "no repo specified, try: ./$0 help"
     exit 1
   fi
+
+  if [[ -z "$OWNER" ]]; then
+    echo "no owner specified, try: ./$0 help"
+    exit 1
+  fi
 }
 
 function clean() {
@@ -113,7 +129,7 @@ function clean() {
 
 function list_workflows() {
   curl -s -H "Authorization: token $GITHUB_TOKEN" \
-    https://api.github.com/repos/aceeric/$REPO/actions/workflows |\
+    "https://api.github.com/repos/$OWNER/$REPO/actions/workflows" |\
     jq -r '.workflows[] | "\(.id) \(.name) \(.path)"' |\
     column -t -C name='ID' -C name='NAME' -C name='PATH'
 }
@@ -131,13 +147,14 @@ function show_usage() {
     Supported commands:
 
       command         Description            Required flags
-      -------------   ---------------        --------------------
-      list-workflows  Lists workflows        --repo
-      clean           Deletes workflow runs  --repo --workflow-id
+      -------------   ---------------        ----------------------------
+      list-workflows  Lists workflows        --repo --owner
+      clean           Deletes workflow runs  --repo --owner --workflow-id
 
     Flags:
   
       --repo         Your repository
+      --owner        Your org or personal name
       --workflow-id  A workflow ID to clean'
 }
 

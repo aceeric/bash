@@ -14,7 +14,9 @@ Useful Bash shell scripts. I run these on Ubuntu.
 | hist | Displays command history filtered on search terms with matches highlighted. E.g. `hist foo` rather than `history \| grep foo --color` |
 | klistall | Lists all Kubernetes namespaced resources in a namespace |
 | ks | Kubernetes Secrets. Displays secret key values without so much typing. E.g.: `ks 5j ca.crt` to display ca.crt from secret `deployer-token-5jsxf` |
+| rm-gh-workflows | Removes (old)  GitHub workflows |
 | sysinfos | Invokes various Linux utils to gather system info and just formats the outputs differently. Mostly an exercise in parsing & formatting |
 | tre | Displays a directory tree using bash. Just as an interesting shell programming exercise |
+| update-golang | Updates Go |
 | wpslide | Gnome wallpaper slide-show |
 
